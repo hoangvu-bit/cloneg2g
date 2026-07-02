@@ -34,11 +34,20 @@ swagger = Swagger(app, template=swagger_template)
   # Cấu hình kết nối SQL Server
   # Bạn cần thay Server, Database bằng thông tin máy bạn
 conn_str = (
+<<<<<<< HEAD
       "Driver={ODBC Driver 17 for SQL Server};"
       "Server=KHAIAI\\KHAAI;"
       "Database=ShopBanHang;"
       "Trusted_Connection=yes;"
   )
+=======
+    "Driver={ODBC Driver 17 for SQL Server};"
+    "Server=192.168.31.107;"
+    "Database=ShopBanHang;"
+    "UID=hoanvu;"
+    "PWD=Vu@123123;"
+)
+>>>>>>> 37c611fef32c7b864093f32dcadb26c40fc5cfb1
 
 def get_db_connection():
     return pyodbc.connect(conn_str)
