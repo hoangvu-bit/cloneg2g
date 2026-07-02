@@ -18,9 +18,10 @@ swagger = Swagger(app)
 # Bạn cần thay Server, Database bằng thông tin máy bạn
 conn_str = (
     "Driver={ODBC Driver 17 for SQL Server};"
-    "Server=KHAIAI\\KHAAI;"
+    "Server=192.168.31.107;"
     "Database=ShopBanHang;"
-    "Trusted_Connection=yes;"
+    "UID=hoanvu;"
+    "PWD=Vu@123123;"
 )
 
 def get_db_connection():
