@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import LoginModal from "./login.jsx";
-
 // Mock Games Database with Sub-products/Denominations
 const MOCK_GAMES = [
   {
@@ -1033,7 +1032,7 @@ function App() {
 
   // Modals & General UX
   const [activeModal, setActiveModal] = useState(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [sellerGame, setSellerGame] = useState("Valorant");
   const [sellerExperience, setSellerExperience] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
@@ -1927,7 +1926,7 @@ function App() {
             </button>
             <button
               className="btn btn-primary btn-sm"
-              onClick={() => setShowAuthModal(true)}
+              onClick={() => setShowLogin(true)}
             >
               Đăng nhập
             </button>
@@ -5094,11 +5093,7 @@ function App() {
       )}
 
       {/* Login Modals */}
-      <LoginModal
-        open={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        triggerToast={triggerToast}
-      />
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
 
       {/* Become a Seller Modal */}
       {activeModal === "seller" && (

@@ -64,17 +64,13 @@ export async function submitLogin({ mail, password }) {
   return user;
 }
 
-export default function LoginModal({ open, onClose, triggerToast }) {
+export default function LoginModal({ onClose }) {
   const [mode, setMode] = useState("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [signupUsername, setSignupUsername] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
-
-  if (!open) {
-    return null;
-  }
 
   const closeModal = () => {
     onClose?.();
@@ -90,30 +86,81 @@ export default function LoginModal({ open, onClose, triggerToast }) {
     e.preventDefault();
 
     try {
-      const user = await submitLogin({
-        mail: loginEmail,
-        password: loginPassword,
+      const normalizedMail = normalizeAccountValue(loginEmail);
+
+      if (!normalizedMail || !loginPassword) {
+        alert("Vui lòng nhập tài khoản và mật khẩu!");
+        return;
+      }
+
+      if (!isValidAccountValue(normalizedMail)) {
+        alert("Email hoặc số điện thoại không hợp lệ!");
+        return;
+      }
+
+      if (!isStrongPassword(loginPassword)) {
+        alert("Mật khẩu không đúng định dạng!");
+        return;
+      }
+
+      const res = await fetch("http://127.0.0.1:5000/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mail: normalizedMail,
+          password: loginPassword,
+        }),
       });
 
-      triggerToast?.(`Đăng nhập thành công! Chào mừng ${user.displayName}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message);
+        return;
+      }
+
+      // Lưu thông tin người dùng
+      localStorage.setItem("shop-online-user", JSON.stringify(data.user));
+
+      alert(data.message);
       closeModal();
     } catch (error) {
-      triggerToast?.(
-        error instanceof Error ? error.message : "Lỗi kết nối server",
-      );
+      console.error(error);
+      alert("Không thể kết nối đến server!");
     }
   };
 
-  const handleSignupSubmit = (e) => {
+  const handleSignupSubmit = async (e) => {
     e.preventDefault();
 
-    if (!signupUsername || !signupEmail || !signupPassword) {
-      triggerToast?.("Vui lòng điền đầy đủ thông tin!");
-      return;
-    }
+    try {
+      const res = await fetch("http://127.0.0.1:5000/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: signupUsername,
+          mail: signupEmail,
+          password: signupPassword,
+        }),
+      });
 
-    triggerToast?.(`Tạo tài khoản ${signupUsername} thành công!`);
-    closeModal();
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message);
+        return;
+      }
+
+      alert(data.message); // Đăng ký thành công
+      closeModal();
+    } catch (error) {
+      console.error(error);
+      alert("Không thể kết nối đến server!");
+    }
   };
 
   return (
@@ -137,9 +184,9 @@ export default function LoginModal({ open, onClose, triggerToast }) {
               <div className="form-group">
                 <label>Email hoặc Tên đăng nhập</label>
                 <input
-                  type="email"
+                  type="text"
                   className="form-control"
-                  placeholder="name@example.com"
+                  placeholder="Email hoặc số điện thoại"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   required
@@ -162,7 +209,7 @@ export default function LoginModal({ open, onClose, triggerToast }) {
                   style={{ fontSize: "12px", color: "var(--brand-red)" }}
                   onClick={(e) => {
                     e.preventDefault();
-                    triggerToast?.("Mã khôi phục đã gửi!");
+                    alert("Mã khôi phục đã gửi!");
                   }}
                 >
                   Quên mật khẩu?
@@ -223,9 +270,9 @@ export default function LoginModal({ open, onClose, triggerToast }) {
               <div className="form-group">
                 <label>Địa chỉ Email</label>
                 <input
-                  type="email"
+                  type="text"
                   className="form-control"
-                  placeholder="name@example.com"
+                  placeholder="Email hoặc số điện thoại"
                   value={signupEmail}
                   onChange={(e) => setSignupEmail(e.target.value)}
                   required

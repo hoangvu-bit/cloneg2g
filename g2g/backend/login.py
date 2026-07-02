@@ -3,10 +3,12 @@ from flasgger import Swagger
 from flask_cors import CORS
 import pyodbc
 import bcrypt
+import jwt
 from datetime import datetime
 import re
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = "my_super_secret_key_2026"
 CORS(app)
 
 
