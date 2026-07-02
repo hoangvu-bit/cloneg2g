@@ -4,7 +4,7 @@ from flask_cors import CORS
 import pyodbc
 import bcrypt
 import jwt
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import re
 
 app = Flask(__name__)
@@ -188,14 +188,37 @@ def login():
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT Name, Password FROM Users WHERE Mail = ?", (mail,))
+    cursor.execute("SELECT Id, Name, Password FROM Users WHERE Mail = ?", (mail,))
     user = cursor.fetchone()
     conn.close()
 
-    if user and bcrypt.checkpw(password.encode('utf-8'), user[1].encode('utf-8')):
-        return jsonify({"message": "Đăng nhập thành công", "user": {"mail": mail, "name": user[0]}}), 200
+    if user and bcrypt.checkpw(password.encode('utf-8'), user[2].encode('utf-8')):
+
+      payload = {
+        "user_id": user[0],
+        "user_name": user[1],
+        "mail": mail,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+    }
+
+      token = jwt.encode(
+        payload,
+        app.config["SECRET_KEY"],
+        algorithm="HS256"
+    )
+
+      return jsonify({
+        "message": "Đăng nhập thành công",
+        "access_token": token,
+        "user": {
+            "id": user[0],
+            "mail": mail,
+            "name": user[1]
+        }
+    }), 200
+
     else:
-        return jsonify({"message": "Sai email hoặc mật khẩu"}), 401
+       return jsonify({"message": "Sai email hoặc mật khẩu"}), 401
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
