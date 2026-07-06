@@ -34,20 +34,11 @@ swagger = Swagger(app, template=swagger_template)
   # Cấu hình kết nối SQL Server
   # Bạn cần thay Server, Database bằng thông tin máy bạn
 conn_str = (
-<<<<<<< HEAD
       "Driver={ODBC Driver 17 for SQL Server};"
       "Server=KHAIAI\\KHAAI;"
       "Database=ShopBanHang;"
       "Trusted_Connection=yes;"
   )
-=======
-    "Driver={ODBC Driver 17 for SQL Server};"
-    "Server=192.168.31.107;"
-    "Database=ShopBanHang;"
-    "UID=hoanvu;"
-    "PWD=Vu@123123;"
-)
->>>>>>> 37c611fef32c7b864093f32dcadb26c40fc5cfb1
 
 def get_db_connection():
     return pyodbc.connect(conn_str)
@@ -164,15 +155,14 @@ def register():
 
           hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
           cursor.execute(
-              "INSERT INTO Users (Name, Mail, Password, CreatedAt) VALUES (?, ?, ?, ?)",
-              (name, mail, hashed.decode('utf-8'), datetime.now()),
+              "INSERT INTO Users (Name, Mail, Password, CreatedAt, Role) VALUES (?, ?, ?, ?, ?)",
+              (name, mail, hashed.decode('utf-8'), datetime.now(), 'user'),
           )
           conn.commit()
           conn.close()
-          return jsonify({"message": "Đăng ký thành công", "user": {"mail": mail, "name": name}}), 201
+          return jsonify({"message": "Đăng ký thành công", "user": {"mail": mail, "name": name, "role": "user"}}), 201
       except Exception as e:
           return jsonify({"message": str(e)}), 400
-
 @app.route('/login', methods=['POST'])
 def login():
       """
@@ -223,7 +213,7 @@ def login():
       
       conn = get_db_connection()
       cursor = conn.cursor()
-      cursor.execute("SELECT Id, Name, Password FROM Users WHERE Mail = ?", (mail,))
+      cursor.execute("SELECT Id, Name, Password, Role FROM Users WHERE Mail = ?", (mail,))
       user = cursor.fetchone()
       conn.close()
 
@@ -233,6 +223,7 @@ def login():
           "user_id": user[0],
           "user_name": user[1],
           "mail": mail,
+          "role": user[3],
           "exp": datetime.now(timezone.utc) + timedelta(hours=1)
       }
 
@@ -248,7 +239,8 @@ def login():
           "user": {
               "id": user[0],
               "mail": mail,
-              "name": user[1]
+            "name": user[1],
+            "role": user[3] or 'user'
           }
       }), 200
 
@@ -283,6 +275,60 @@ def token_required(f):
         return f(payload, *args, **kwargs)
 
     return decorated
+
+
+@app.route('/register-seller', methods=['POST'])
+@token_required
+def register_seller(user):
+      """
+      Nâng cấp tài khoản thành người bán
+      ---
+      tags:
+        - Authentication
+
+      security:
+        - Bearer: []
+
+      responses:
+        200:
+          description: Cập nhật role thành công
+
+        401:
+          description: Chưa đăng nhập hoặc token không hợp lệ
+      """
+      try:
+          conn = get_db_connection()
+          cursor = conn.cursor()
+
+          cursor.execute("SELECT Id, Name, Mail, Role FROM Users WHERE Id = ?", (user["user_id"],))
+          existing_user = cursor.fetchone()
+
+          if not existing_user:
+              conn.close()
+              return jsonify({"message": "Không tìm thấy người dùng"}), 404
+
+          if (existing_user[3] or '').lower() != 'seller':
+              cursor.execute(
+                  "UPDATE Users SET Role = ? WHERE Id = ?",
+                  ('seller', existing_user[0]),
+              )
+              conn.commit()
+
+          cursor.execute("SELECT Id, Name, Mail, Role FROM Users WHERE Id = ?", (existing_user[0],))
+          updated_user = cursor.fetchone()
+          conn.close()
+
+          return jsonify({
+              "message": "Đăng ký người bán thành công",
+              "user": {
+                  "id": updated_user[0],
+                  "name": updated_user[1],
+                  "mail": updated_user[2],
+                  "role": updated_user[3] or 'seller'
+              }
+          }), 200
+      except Exception as e:
+          return jsonify({"message": str(e)}), 400
 
 
 @app.route("/profile", methods=["GET"])

@@ -30,6 +30,169 @@
   cursor: pointer;
 }
 
+.user-account-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 4px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  background: var(--bg-card);
+}
+
+.user-account-name {
+  max-width: 180px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-icon-button {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: var(--text-primary);
+  background: var(--brand-red-light);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.logout-icon-button:hover {
+  background: rgba(255, 78, 58, 0.2);
+  border-color: var(--brand-red);
+  transform: translateY(-1px);
+}
+
+.logout-icon-button svg {
+  flex: 0 0 auto;
+}
+
+.register-seller-page {
+  min-height: calc(100vh - 72px);
+  padding: 56px 0 80px;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(255, 78, 58, 0.15),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(16, 185, 129, 0.14),
+      transparent 30%
+    ),
+    var(--bg-primary);
+}
+
+.register-seller-shell {
+  display: flex;
+  justify-content: center;
+}
+
+.register-seller-card {
+  width: 100%;
+  max-width: 760px;
+  padding: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent),
+    var(--bg-secondary);
+  box-shadow: var(--card-shadow);
+}
+
+.register-seller-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.register-seller-back {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.register-seller-title-group h1 {
+  margin: 6px 0 8px;
+  font-family: var(--font-heading);
+  font-size: 34px;
+}
+
+.register-seller-kicker {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: var(--brand-red-light);
+  color: var(--brand-red);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.register-seller-title-group p {
+  max-width: 580px;
+  color: var(--text-secondary);
+}
+
+.register-seller-terms-box {
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  background: var(--bg-card);
+}
+
+.register-seller-terms-box h2 {
+  margin-bottom: 14px;
+  font-size: 18px;
+}
+
+.register-seller-terms-box ul {
+  margin-left: 18px;
+  margin-bottom: 20px;
+  color: var(--text-secondary);
+}
+
+.register-seller-terms-box li + li {
+  margin-top: 8px;
+}
+
+.register-seller-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.register-seller-checkbox-row input {
+  margin-top: 3px;
+}
+
+.register-seller-confirm {
+  width: 100%;
+  margin-top: 24px;
+  padding: 14px 18px;
+}
+
+.register-seller-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .logo-g2g {
   color: var(--brand-red);
 }
@@ -113,14 +276,14 @@
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   z-index: 1001;
   overflow: hidden;
   animation: fadeIn 0.2s ease-out;
 }
 
 body.light-theme .search-suggestions-dropdown {
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
 .suggestion-item {
@@ -285,7 +448,11 @@ body.light-theme .search-suggestions-dropdown {
 .flash-sale-section {
   padding: 40px 0;
   border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(180deg, rgba(255, 78, 58, 0.02) 0%, transparent 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 78, 58, 0.02) 0%,
+    transparent 100%
+  );
 }
 
 .flash-sale-header {
@@ -323,7 +490,7 @@ body.light-theme .flash-sale-title {
   display: inline-block;
   min-width: 28px;
   text-align: center;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .time-colon {
@@ -373,7 +540,7 @@ body.light-theme .flash-sale-title {
   padding: 3px 8px;
   border-radius: 6px;
   z-index: 3;
-  box-shadow: 0 4px 10px rgba(255,78,58,0.25);
+  box-shadow: 0 4px 10px rgba(255, 78, 58, 0.25);
 }
 
 .flash-image-wrapper {
@@ -387,7 +554,7 @@ body.light-theme .flash-sale-title {
 .flash-logo-text {
   font-size: 36px;
   font-weight: 900;
-  color: rgba(255,255,255,0.7);
+  color: rgba(255, 255, 255, 0.7);
   letter-spacing: 1px;
 }
 
@@ -792,7 +959,7 @@ body.light-theme .flash-sale-title {
   height: 100%;
   background-color: var(--bg-secondary);
   border-left: 1px solid var(--border-color);
-  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1284,10 +1451,22 @@ body.light-theme .flash-sale-title {
   border: 3px solid #000;
 }
 
-.qr-corner.top-left { top: 12px; left: 12px; }
-.qr-corner.top-right { top: 12px; right: 12px; }
-.qr-corner.bottom-left { bottom: 12px; left: 12px; }
-.qr-corner.bottom-right { bottom: 12px; right: 12px; }
+.qr-corner.top-left {
+  top: 12px;
+  left: 12px;
+}
+.qr-corner.top-right {
+  top: 12px;
+  right: 12px;
+}
+.qr-corner.bottom-left {
+  bottom: 12px;
+  left: 12px;
+}
+.qr-corner.bottom-right {
+  bottom: 12px;
+  right: 12px;
+}
 
 .qr-logo-momo {
   background-color: var(--brand-red);
@@ -1713,7 +1892,7 @@ body.light-theme .flash-sale-title {
   max-width: 480px;
   width: 90%;
   text-align: center;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 .verification-box h3 {
@@ -1741,7 +1920,9 @@ body.light-theme .flash-sale-title {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Checkmark Animated Success */
@@ -1761,7 +1942,7 @@ body.light-theme .flash-sale-title {
 }
 
 .check-icon::after {
-  content: '';
+  content: "";
   position: absolute;
   width: 60px;
   height: 120px;
@@ -1812,8 +1993,14 @@ body.light-theme .flash-sale-title {
 }
 
 @keyframes bounceIn {
-  from { transform: scale(0.8); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* Floating Chat system widget styling */
@@ -1826,7 +2013,7 @@ body.light-theme .flash-sale-title {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   z-index: 9999;
@@ -1835,7 +2022,7 @@ body.light-theme .flash-sale-title {
 }
 
 body.light-theme .chat-widget {
-  box-shadow: 0 12px 36px rgba(0,0,0,0.15);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
 }
 
 .chat-widget-header {
@@ -2056,7 +2243,7 @@ body.light-theme .chat-widget {
   padding: 14px 24px;
   border-radius: 12px;
   z-index: 20000;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   font-weight: 600;
   font-size: 13.5px;
   display: flex;
@@ -2075,13 +2262,23 @@ body.light-theme .chat-widget {
 
 /* Keyframes animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* G2G Intermediate Category Directory Styles */
@@ -2859,7 +3056,7 @@ body.light-theme .hero-section {
     grid-template-columns: 1fr;
     text-align: center;
   }
-  
+
   .hero-right-mascot {
     display: none;
   }
@@ -2897,7 +3094,8 @@ body.light-theme .hero-section {
 }
 
 @media (max-width: 600px) {
-  .hero-title, .hero-title span {
+  .hero-title,
+  .hero-title span {
     font-size: 32px;
   }
 }
@@ -3018,11 +3216,12 @@ body.light-theme .g2g-disclaimer-text {
   max-height: 300px;
   object-fit: contain;
   animation: floatMascot 6s ease-in-out infinite;
-  filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.4));
 }
 
 @keyframes floatMascot {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -3044,7 +3243,7 @@ body.light-theme .g2g-disclaimer-text {
 
 .coaching-gamepal-banner-section {
   position: relative;
-  background-image: url('/src/assets/coaching_banner_bg.png');
+  background-image: url("/src/assets/coaching_banner_bg.png");
   background-size: cover;
   background-position: center;
   border-radius: 20px;
@@ -3061,7 +3260,12 @@ body.light-theme .g2g-disclaimer-text {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(10, 10, 13, 0.95) 0%, rgba(20, 10, 30, 0.85) 50%, rgba(10, 10, 13, 0.95) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(10, 10, 13, 0.95) 0%,
+    rgba(20, 10, 30, 0.85) 50%,
+    rgba(10, 10, 13, 0.95) 100%
+  );
   z-index: 1;
 }
 
@@ -3328,7 +3532,11 @@ body.light-theme .trending-section {
 }
 
 .g2g-trending-gold-card {
-  background: linear-gradient(135deg, rgba(217, 119, 6, 0.22) 0%, rgba(217, 119, 6, 0.08) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(217, 119, 6, 0.22) 0%,
+    rgba(217, 119, 6, 0.08) 100%
+  );
   border: 1px solid rgba(251, 191, 36, 0.2);
   border-radius: 12px;
   padding: 24px 16px;
@@ -3343,7 +3551,11 @@ body.light-theme .trending-section {
 }
 
 body.light-theme .g2g-trending-gold-card {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(245, 158, 11, 0.15) 0%,
+    rgba(245, 158, 11, 0.05) 100%
+  );
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
@@ -3351,7 +3563,11 @@ body.light-theme .g2g-trending-gold-card {
   border-color: var(--gold);
   transform: translateY(-3px);
   box-shadow: 0 8px 24px rgba(251, 191, 36, 0.18);
-  background: linear-gradient(135deg, rgba(217, 119, 6, 0.3) 0%, rgba(217, 119, 6, 0.12) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(217, 119, 6, 0.3) 0%,
+    rgba(217, 119, 6, 0.12) 100%
+  );
 }
 
 .trending-gold-card-title {
@@ -3436,7 +3652,11 @@ body.light-theme .g2g-trending-view-all-btn:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at 80% 20%, rgba(251, 191, 36, 0.1) 0%, transparent 60%);
+  background: radial-gradient(
+    circle at 80% 20%,
+    rgba(251, 191, 36, 0.1) 0%,
+    transparent 60%
+  );
   z-index: 1;
 }
 

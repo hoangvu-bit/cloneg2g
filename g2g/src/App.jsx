@@ -1,6 +1,26 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import LoginModal from "./login.jsx";
+import RegisterSeller from "./RegisterSeller.jsx";
+
+const USER_STORAGE_KEY = "shop-online-user";
+const TOKEN_STORAGE_KEY = "shop-online-token";
+
+const readStoredUser = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return null;
+  }
+
+  try {
+    const storedUser = window.localStorage.getItem(USER_STORAGE_KEY);
+    const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+    return parsedUser
+      ? { ...parsedUser, role: parsedUser.role || "user" }
+      : null;
+  } catch {
+    return null;
+  }
+};
 // Mock Games Database with Sub-products/Denominations
 const MOCK_GAMES = [
   {
@@ -954,7 +974,7 @@ const MOCK_REVIEWS = [
 
 function App() {
   const [theme, setTheme] = useState("dark");
-  const [currentView, setCurrentView] = useState("home"); // 'home', 'catalog', 'category-catalog', 'product-detail', 'checkout', 'orders'
+  const [currentView, setCurrentView] = useState("home"); // 'home', 'catalog', 'category-catalog', 'product-detail', 'checkout', 'orders', 'register-seller'
 
   // Navigation Selection States
   const [selectedGame, setSelectedGame] = useState(null);
@@ -1033,6 +1053,7 @@ function App() {
   // Modals & General UX
   const [activeModal, setActiveModal] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => readStoredUser());
   const [sellerGame, setSellerGame] = useState("Valorant");
   const [sellerExperience, setSellerExperience] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
@@ -1104,6 +1125,65 @@ function App() {
   };
 
   const formattedClock = formatTime(timeLeft);
+
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === USER_STORAGE_KEY) {
+        setCurrentUser(event.newValue ? JSON.parse(event.newValue) : null);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  const handleLoginSuccess = (user) => {
+    setCurrentUser({ ...user, role: user.role || "user" });
+    setShowLogin(false);
+  };
+
+  const handleSellerRegistrationComplete = (updatedUser) => {
+    if (!updatedUser) {
+      return;
+    }
+
+    setCurrentUser(updatedUser);
+    pushRoute("home");
+    triggerToast("Đăng ký trở thành người bán thành công.");
+  };
+
+  const handleLogout = () => {
+    const confirmed = window.confirm("Bạn có muốn đăng xuất không?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    window.localStorage.removeItem(USER_STORAGE_KEY);
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setCurrentUser(null);
+    triggerToast("Bạn đã đăng xuất thành công.");
+  };
+
+  const handleSellerEntryClick = () => {
+    if (!currentUser) {
+      triggerToast("Vui lòng đăng nhập trước khi đăng ký trở thành người bán.");
+      setShowLogin(true);
+      return;
+    }
+
+    if (currentUser.role === "seller") {
+      triggerToast("Bạn đang là seller");
+      return;
+    }
+
+    pushRoute("register-seller");
+  };
+
+  const sellerEntryLabel =
+    currentUser?.role === "seller"
+      ? "Bạn đang là seller"
+      : "Trở thành người bán";
 
   // Sync theme changes with body element
   useEffect(() => {
@@ -1299,6 +1379,10 @@ function App() {
       pushRoute("mobile-topup", {}, replace);
       return;
     }
+    if (path === "/register-seller") {
+      pushRoute("register-seller", {}, replace);
+      return;
+    }
     pushRoute("home", {}, true);
   };
 
@@ -1344,6 +1428,8 @@ function App() {
         setCurrentView("gamepal-directory");
       } else if (path === "/mobile-topup") {
         setCurrentView("mobile-topup");
+      } else if (path === "/register-seller") {
+        setCurrentView("register-seller");
       } else {
         setCurrentView("home");
       }
@@ -1752,7 +1838,7 @@ function App() {
                 </svg>
               </button>
             </div>
-
+            onClick={handleSellerEntryClick}
             {/* Live Autocomplete Suggestions Box */}
             {searchFocused && (
               <div className="search-suggestions-dropdown">
@@ -1830,9 +1916,9 @@ function App() {
           <div className="nav-actions">
             <button
               className="seller-link btn btn-text"
-              onClick={() => setActiveModal("seller")}
+              onClick={handleSellerEntryClick}
             >
-              Trở thành người bán
+              {sellerEntryLabel}
               <span
                 className="badge badge-success"
                 style={{ marginLeft: "6px" }}
@@ -1924,12 +2010,42 @@ function App() {
             >
               Đơn Hàng
             </button>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => setShowLogin(true)}
-            >
-              Đăng nhập
-            </button>
+            {currentUser ? (
+              <div className="user-account-display">
+                <span className="user-account-name">
+                  {currentUser.displayName || currentUser.name || "Người dùng"}
+                </span>
+                <button
+                  type="button"
+                  className="logout-icon-button"
+                  onClick={handleLogout}
+                  title="Đăng xuất"
+                  aria-label="Đăng xuất"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10 17l1 1a2 2 0 0 0 2 0l7-7"></path>
+                    <path d="M21 12H9"></path>
+                    <path d="M13 5l-3-3H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6l3-3"></path>
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setShowLogin(true)}
+              >
+                Đăng nhập
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -4778,10 +4894,10 @@ function App() {
                     href="#become"
                     onClick={(e) => {
                       e.preventDefault();
-                      setActiveModal("seller");
+                      handleSellerEntryClick();
                     }}
                   >
-                    Đăng ký người bán
+                    {sellerEntryLabel}
                   </a>
                 </li>
               </ul>
@@ -5093,7 +5209,20 @@ function App() {
       )}
 
       {/* Login Modals */}
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onLogin={handleLoginSuccess}
+        />
+      )}
+
+      {currentView === "register-seller" && currentUser && (
+        <RegisterSeller
+          user={currentUser}
+          onBack={() => pushRoute("home")}
+          onConfirm={handleSellerRegistrationComplete}
+        />
+      )}
 
       {/* Become a Seller Modal */}
       {activeModal === "seller" && (

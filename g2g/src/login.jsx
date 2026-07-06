@@ -1,70 +1,8 @@
 import { useState } from "react";
 import "./App.css";
+import { submitLogin } from "./auth.js";
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phoneRegex = /^(?:\+?84|0)\d{9}$/;
-const passwordUppercaseRegex = /[A-Z]/;
-const passwordNumberRegex = /\d/;
-const passwordSpecialRegex = /[^A-Za-z0-9]/;
-
-export const normalizeAccountValue = (value = "") =>
-  value.replace(/[\s-]/g, "").trim();
-
-export const isValidAccountValue = (value = "") => {
-  const normalized = normalizeAccountValue(value);
-  return emailRegex.test(normalized) || phoneRegex.test(normalized);
-};
-
-export const isStrongPassword = (value = "") =>
-  value.length >= 8 &&
-  passwordUppercaseRegex.test(value) &&
-  passwordNumberRegex.test(value) &&
-  passwordSpecialRegex.test(value);
-
-export async function submitLogin({ mail, password }) {
-  const normalizedMail = normalizeAccountValue(mail);
-
-  if (!normalizedMail || !password) {
-    throw new Error("Vui lòng nhập tài khoản và mật khẩu!");
-  }
-
-  if (!isValidAccountValue(normalizedMail)) {
-    throw new Error("Nhập email hợp lệ hoặc số điện thoại hợp lệ");
-  }
-
-  if (!isStrongPassword(password)) {
-    throw new Error(
-      "Mật khẩu phải có ít nhất 8 ký tự, có chữ hoa, số và ký tự đặc biệt",
-    );
-  }
-
-  const res = await fetch("http://127.0.0.1:5000/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mail: normalizedMail, password }),
-  });
-
-  const data = await res
-    .json()
-    .catch(() => ({ message: "Server không trả JSON hợp lệ" }));
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Có lỗi xảy ra");
-  }
-
-  const user = {
-    mail: data?.user?.mail || normalizedMail,
-    displayName: data?.user?.name || data?.user?.mail || normalizedMail,
-  };
-
-  if (typeof window !== "undefined" && window.localStorage) {
-    window.localStorage.setItem("shop-online-user", JSON.stringify(user));
-  }
-
-  return user;
-}
-
-export default function LoginModal({ onClose }) {
+export default function LoginModal({ onClose, onLogin }) {
   const [mode, setMode] = useState("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -86,49 +24,17 @@ export default function LoginModal({ onClose }) {
     e.preventDefault();
 
     try {
-      const normalizedMail = normalizeAccountValue(loginEmail);
-
-      if (!normalizedMail || !loginPassword) {
-        alert("Vui lòng nhập tài khoản và mật khẩu!");
-        return;
-      }
-
-      if (!isValidAccountValue(normalizedMail)) {
-        alert("Email hoặc số điện thoại không hợp lệ!");
-        return;
-      }
-
-      if (!isStrongPassword(loginPassword)) {
-        alert("Mật khẩu không đúng định dạng!");
-        return;
-      }
-
-      const res = await fetch("http://127.0.0.1:5000/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          mail: normalizedMail,
-          password: loginPassword,
-        }),
+      const { user } = await submitLogin({
+        mail: loginEmail,
+        password: loginPassword,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.message);
-        return;
-      }
-
-      // Lưu thông tin người dùng
-      localStorage.setItem("shop-online-user", JSON.stringify(data.user));
-
-      alert(data.message);
+      onLogin?.(user);
+      alert("Đăng nhập thành công");
       closeModal();
     } catch (error) {
       console.error(error);
-      alert("Không thể kết nối đến server!");
+      alert(error.message || "Không thể kết nối đến server!");
     }
   };
 
