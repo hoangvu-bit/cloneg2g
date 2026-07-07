@@ -236,7 +236,6 @@ def login():
 
     else:
        return jsonify({"message": "Sai email hoặc mật khẩu"}), 401
->>>>>>> c58c4ce6df44047cd93a050b59f9095cf7a4f76e
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
