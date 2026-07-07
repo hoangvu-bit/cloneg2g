@@ -1838,7 +1838,7 @@ function App() {
                 </svg>
               </button>
             </div>
-            onClick={handleSellerEntryClick}
+            {handleSellerEntryClick}
             {/* Live Autocomplete Suggestions Box */}
             {searchFocused && (
               <div className="search-suggestions-dropdown">

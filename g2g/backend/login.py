@@ -1,3 +1,5 @@
+import token
+
 from flask import Flask, request, jsonify
 from flasgger import Swagger
 from flask_cors import CORS
@@ -317,9 +319,21 @@ def register_seller(user):
           cursor.execute("SELECT Id, Name, Mail, Role FROM Users WHERE Id = ?", (existing_user[0],))
           updated_user = cursor.fetchone()
           conn.close()
-
+          payload = {
+            "user_id": updated_user[0],
+            "user_name": updated_user[1],
+            "mail": updated_user[2],
+            "role": updated_user[3],
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+          }
+          new_token = jwt.encode(
+            payload,
+            app.config["SECRET_KEY"],
+            algorithm="HS256"
+        )
           return jsonify({
               "message": "Đăng ký người bán thành công",
+              "access_token": new_token,
               "user": {
                   "id": updated_user[0],
                   "name": updated_user[1],
@@ -350,9 +364,12 @@ def profile(user):
       401:
         description: Chưa đăng nhập
     """
-
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.split(" ", 1)[1].strip()
+    
     return jsonify({
         "message": "Lấy thông tin thành công",
+        "access_token": token,
         "user": user
     })
 
