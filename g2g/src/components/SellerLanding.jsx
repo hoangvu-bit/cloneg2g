@@ -106,11 +106,16 @@ export default function SellerLanding({
       stock: stockNum,
       region: addRegion,
       category: addCategory,
-      badge: addBadge
+      badge: addBadge,
+      sellerName: currentUser ? currentUser.name : 'Người Bán'
     };
 
-    // Add to seller listings state
-    setSellerListings([newListing, ...sellerListings]);
+    // Add to seller listings state AND save to localStorage
+    const updatedListings = [newListing, ...sellerListings];
+    setSellerListings(updatedListings);
+    try {
+      localStorage.setItem('g2g_seller_listings', JSON.stringify(updatedListings));
+    } catch (e) { console.error(e); }
 
     // Integrate with MOCK_GAMES in App so buyers can search and buy
     if (selectedGame) {
@@ -123,7 +128,10 @@ export default function SellerLanding({
         price: newListing.price,
         badge: newListing.badge,
         region: newListing.region,
-        offers: 1
+        offers: 1,
+        category: newListing.category,
+        sellerName: currentUser ? currentUser.name : 'Người Bán',
+        stock: newListing.stock,
       });
     }
 
@@ -163,7 +171,11 @@ export default function SellerLanding({
 
   // Handle deleting listing
   const handleDeleteListing = (id, gameId) => {
-    setSellerListings(sellerListings.filter(item => item.id !== id));
+    const updatedListings = sellerListings.filter(item => item.id !== id);
+    setSellerListings(updatedListings);
+    try {
+      localStorage.setItem('g2g_seller_listings', JSON.stringify(updatedListings));
+    } catch (e) { console.error(e); }
 
     // Remove from mock game list
     const selectedGame = MOCK_GAMES.find(g => g.id === gameId);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MOCK_GAMES, MOCK_SELLERS, MOCK_REVIEWS } from '../MockData';
 
 export default function ProductCatalog({
@@ -32,7 +32,26 @@ export default function ProductCatalog({
   handleBuyNow,
   handleAddToCart,
   openChatWithPartner,
+  handleSelectProduct,
+  // Product Reviews Props
+  productReviews = {},
+  handleAddReview,
+  currentUser,
+  setActiveModal,
+  // Mobile Top-up Props
+  topupPhone,
+  setTopupPhone,
+  topupOperator,
+  setTopupOperator,
+  topupAmount,
+  setTopupAmount,
+  handleDepositToWallet,
+  userWalletBalance = 0,
+  sellerListings = [],
 }) {
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+
   return (
     <>
       {/* Category Catalog Page View (New Category listings navigation router) */}
@@ -49,12 +68,28 @@ export default function ProductCatalog({
                 {selectedCategory === 'all'
                   ? 'Tất cả sản phẩm'
                   : selectedCategory === 'coins'
-                  ? 'Tiền tệ Game (Coins)'
-                  : selectedCategory === 'accounts'
-                  ? 'Tài khoản VIP'
-                  : selectedCategory === 'cards'
-                  ? 'Thẻ game / Gift Card'
-                  : 'Cày thuê (Boosting)'}
+                    ? 'Tiền tệ Game (Coins)'
+                    : selectedCategory === 'accounts'
+                      ? 'Tài khoản VIP'
+                      : selectedCategory === 'cards'
+                        ? 'Thẻ game / Gift Card'
+                        : selectedCategory === 'boosting'
+                          ? 'Cày thuê (Boosting)'
+                          : selectedCategory === 'coaching'
+                            ? 'Game Coaching (Beta)'
+                            : selectedCategory === 'gamepal'
+                              ? 'GamePal (Beta)'
+                              : selectedCategory === 'items'
+                                ? 'Vật phẩm game'
+                                : selectedCategory === 'skin'
+                                  ? 'Trang phục / Skins'
+                                  : selectedCategory === 'topup'
+                                    ? 'Nạp tiền điện thoại'
+                                    : selectedCategory === 'software'
+                                      ? 'Phần mềm & Ứng dụng'
+                                      : selectedCategory === 'payment'
+                                        ? 'Thẻ thanh toán'
+                                        : 'Sản phẩm khác'}
               </span>
             </div>
 
@@ -66,6 +101,13 @@ export default function ProductCatalog({
                 {selectedCategory === 'accounts' && '👤'}
                 {selectedCategory === 'cards' && '💳'}
                 {selectedCategory === 'boosting' && '⚡'}
+                {selectedCategory === 'coaching' && '🎓'}
+                {selectedCategory === 'gamepal' && '👥'}
+                {selectedCategory === 'items' && '📦'}
+                {selectedCategory === 'skin' && '🛡️'}
+                {selectedCategory === 'topup' && '📱'}
+                {selectedCategory === 'software' && '💻'}
+                {selectedCategory === 'payment' && '💳'}
               </div>
               <h1 className="category-directory-title">
                 {selectedCategory === 'all' && 'Trò chơi & Thương hiệu'}
@@ -73,166 +115,334 @@ export default function ProductCatalog({
                 {selectedCategory === 'accounts' && 'Tài khoản game VIP'}
                 {selectedCategory === 'cards' && 'Thẻ game & Quà tặng'}
                 {selectedCategory === 'boosting' && 'Cày thuê (Boosting)'}
+                {selectedCategory === 'coaching' && 'Game Coaching (Beta)'}
+                {selectedCategory === 'gamepal' && 'GamePal (Beta)'}
+                {selectedCategory === 'items' && 'Vật phẩm game'}
+                {selectedCategory === 'skin' && 'Trang phục & Skins'}
+                {selectedCategory === 'topup' && 'Nạp tiền điện thoại'}
+                {selectedCategory === 'software' && 'Phần mềm & Ứng dụng'}
+                {selectedCategory === 'payment' && 'Thẻ thanh toán'}
               </h1>
             </div>
 
-            {/* Search & Tabs bar matching G2G layout */}
-            <div className="brand-search-tab-bar">
-              <div className="brand-search-input-wrapper">
-                <svg
-                  className="search-icon-mini"
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <path d="M21 21l-4.35-4.35"></path>
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm thương hiệu..."
-                  className="brand-search-input-field"
-                  value={brandSearchQuery}
-                  onChange={(e) => setBrandSearchQuery(e.target.value)}
-                />
+            {selectedCategory === 'topup' ? (
+              <div className="mobile-topup-container">
+                <div className="mobile-topup-card">
+                  <div className="topup-card-header">
+                    <h3>⚡ Nạp Tiền Vào Ví Tài Khoản</h3>
+                    <p>Nạp số dư ví người mua để thanh toán trực tiếp các đơn hàng trên G2G Clone.</p>
+                  </div>
+
+                  {/* Current balance display */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(251,191,36,0.1) 0%, rgba(30,30,35,0.8) 100%)',
+                    border: '1px solid rgba(251,191,36,0.25)',
+                    borderRadius: '12px',
+                    padding: '16px 20px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '24px' }}>💰</span>
+                      <div>
+                        <div style={{ color: '#9ea2a9', fontSize: '12px', fontWeight: 500, marginBottom: '2px' }}>Số dư ví hiện tại</div>
+                        <div style={{ color: userWalletBalance > 0 ? '#fbbf24' : '#9ea2a9', fontWeight: 800, fontSize: '20px' }}>
+                          {userWalletBalance.toLocaleString('vi-VN')}₫
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'rgba(251,191,36,0.12)', color: '#fbbf24',
+                      border: '1px solid rgba(251,191,36,0.3)',
+                      borderRadius: '8px', padding: '6px 12px',
+                      fontSize: '12px', fontWeight: 600
+                    }}>Ví G2G</div>
+                  </div>
+                  
+                  <div className="topup-form-group">
+                    <label>Tài khoản nhận tiền:</label>
+                    <input 
+                      type="text" 
+                      className="topup-input"
+                      value={currentUser ? `${currentUser.name} (ID: ${currentUser.id || '1004154462'})` : 'Vui lòng đăng nhập'}
+                      disabled
+                      style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  </div>
+
+                  <div className="topup-form-group">
+                    <label>Chọn phương thức nạp:</label>
+                    <div className="operator-grid">
+                      {[
+                        { id: 'momo', label: 'VÍ MOMO' },
+                        { id: 'zalopay', label: 'ZALOPAY' },
+                        { id: 'banking', label: 'NGÂN HÀNG' },
+                        { id: 'visa', label: 'VISA/CARD' }
+                      ].map((op) => (
+                        <div 
+                          key={op.id}
+                          className={`operator-pill ${topupOperator === op.id ? 'active' : ''}`}
+                          onClick={() => setTopupOperator(op.id)}
+                        >
+                          <span className="operator-logo" style={{ fontSize: '11px' }}>{op.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="topup-form-group">
+                    <label>Chọn số tiền nạp (VND):</label>
+                    <div className="amount-grid">
+                      {[50000, 100000, 200000, 500000, 1000000, 2000000].map((amt) => (
+                        <div 
+                          key={amt}
+                          className={`amount-pill ${topupAmount === amt ? 'active' : ''}`}
+                          onClick={() => setTopupAmount(amt)}
+                        >
+                          <span>{amt.toLocaleString('vi-VN')}₫</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="topup-summary-row justify-between">
+                    <span>Tổng tiền nạp thực tế:</span>
+                    <strong className="topup-final-price">
+                      {topupAmount.toLocaleString('vi-VN')}đ
+                    </strong>
+                  </div>
+
+                  <button 
+                    className="btn btn-primary topup-submit-btn"
+                    onClick={() => {
+                      if (!currentUser) {
+                        triggerToast('Bạn cần đăng nhập để nạp tiền!');
+                        setActiveModal('login');
+                        return;
+                      }
+                      handleDepositToWallet(topupAmount);
+                    }}
+                  >
+                    🚀 Xác Nhận Nạp Tiền
+                  </button>
+                </div>
               </div>
-              <div className="brand-tabs-list">
-                <span
-                  className={`brand-tab-item ${activeBrandTab === 'all' ? 'active' : ''}`}
-                  onClick={() => setActiveBrandTab('all')}
-                >
-                  Tất cả
-                </span>
-                <span
-                  className={`brand-tab-item ${activeBrandTab === 'coins' ? 'active' : ''}`}
-                  onClick={() => setActiveBrandTab('coins')}
-                >
-                  Coins game
-                </span>
-                <span
-                  className={`brand-tab-item ${activeBrandTab === 'accounts' ? 'active' : ''}`}
-                  onClick={() => setActiveBrandTab('accounts')}
-                >
-                  Tài khoản VIP
-                </span>
-                <span
-                  className={`brand-tab-item ${activeBrandTab === 'cards' ? 'active' : ''}`}
-                  onClick={() => setActiveBrandTab('cards')}
-                >
-                  Thẻ game
-                </span>
-                <span
-                  className={`brand-tab-item ${activeBrandTab === 'boosting' ? 'active' : ''}`}
-                  onClick={() => setActiveBrandTab('boosting')}
-                >
-                  Cày thuê
-                </span>
-              </div>
-            </div>
-
-            {/* Filtering games list */}
-            {(() => {
-              const filteredGames = MOCK_GAMES.filter((game) => {
-                const matchesMainCategory =
-                  selectedCategory === 'all' || game.category === selectedCategory;
-                const matchesSearch = game.name
-                  .toLowerCase()
-                  .includes(brandSearchQuery.toLowerCase());
-                const matchesSubTab = activeBrandTab === 'all' || game.category === activeBrandTab;
-                return matchesMainCategory && matchesSearch && matchesSubTab;
-              });
-
-              const trendingGames = filteredGames.slice(0, 8);
-              const allGames = filteredGames;
-
-              if (filteredGames.length === 0) {
-                return (
-                  <div className="empty-catalog-results">
-                    <span className="empty-icon">📂</span>
-                    <h4>Không tìm thấy thương hiệu nào!</h4>
-                    <p>
-                      Vui lòng nhập lại tên game hoặc thương hiệu khác trong thanh tìm kiếm bên trên.
-                    </p>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => {
-                        setBrandSearchQuery('');
-                        setActiveBrandTab('all');
-                      }}
+            ) : (
+              <>
+                {/* Search & Tabs bar matching G2G layout */}
+                <div className="brand-search-tab-bar">
+                  <div className="brand-search-input-wrapper">
+                    <svg
+                      className="search-icon-mini"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      viewBox="0 0 24 24"
                     >
-                      Đặt lại bộ lọc
-                    </button>
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="M21 21l-4.35-4.35"></path>
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm thương hiệu..."
+                      className="brand-search-input-field"
+                      value={brandSearchQuery}
+                      onChange={(e) => setBrandSearchQuery(e.target.value)}
+                    />
                   </div>
-                );
-              }
+                  <div className="brand-tabs-list">
+                    <span
+                      className={`brand-tab-item ${activeBrandTab === 'all' ? 'active' : ''}`}
+                      onClick={() => setActiveBrandTab('all')}
+                    >
+                      Tất cả
+                    </span>
+                    <span
+                      className={`brand-tab-item ${activeBrandTab === 'coins' ? 'active' : ''}`}
+                      onClick={() => setActiveBrandTab('coins')}
+                    >
+                      Coins game
+                    </span>
+                    <span
+                      className={`brand-tab-item ${activeBrandTab === 'accounts' ? 'active' : ''}`}
+                      onClick={() => setActiveBrandTab('accounts')}
+                    >
+                      Tài khoản VIP
+                    </span>
+                    <span
+                      className={`brand-tab-item ${activeBrandTab === 'cards' ? 'active' : ''}`}
+                      onClick={() => setActiveBrandTab('cards')}
+                    >
+                      Thẻ game
+                    </span>
+                    <span
+                      className={`brand-tab-item ${activeBrandTab === 'boosting' ? 'active' : ''}`}
+                      onClick={() => setActiveBrandTab('boosting')}
+                    >
+                      Cày thuê
+                    </span>
+                  </div>
+                </div>
 
-              return (
-                <>
-                  {/* Xu hướng (Trending) Blocks Grid */}
-                  <div className="directory-section-container">
-                    <h3 className="directory-section-title">Xu Hướng</h3>
-                    <div className="brand-trending-grid">
-                      {trendingGames.map((game) => {
-                        const totalOffers = game.items.reduce(
-                          (sum, item) => sum + item.offers,
-                          0
-                        );
-                        return (
-                          <div
-                            key={game.id}
-                            className="brand-trending-block"
-                            onClick={() => navigateToCatalog(game)}
-                          >
-                            <div className="brand-stripe-edge"></div>
-                            <div className="brand-block-content">
-                              <h4 className="brand-block-title">{game.name}</h4>
-                              <span className="brand-offers-pill">{totalOffers} ưu đãi</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                {/* Filtering games list — merging sellerListings items */}
+                {(() => {
+                  // Build enriched games list: inject sellerListings items into matching games
+                  const gamesWithSellerItems = MOCK_GAMES.map((game) => {
+                    const extraItems = sellerListings
+                      .filter((sl) => sl.gameId === game.id)
+                      .map((sl) => ({
+                        id: sl.id,
+                        name: sl.name,
+                        price: sl.price,
+                        badge: sl.badge || 'Người Bán Mới',
+                        region: sl.region || 'Global',
+                        offers: 1,
+                        category: sl.category,
+                        stock: sl.stock,
+                        sellerName: sl.sellerName || 'Người Bán',
+                        isSellerListing: true,
+                      }));
+                    return {
+                      ...game,
+                      items: [...extraItems, ...game.items],
+                    };
+                  });
 
-                  {/* Tất cả thương hiệu (All Brands) Grid */}
-                  <div className="directory-section-container" style={{ marginTop: '40px' }}>
-                    <h3 className="directory-section-title">
-                      Tất cả thương hiệu cho{' '}
-                      {selectedCategory === 'all'
-                        ? 'Trò chơi'
-                        : selectedCategory === 'coins'
-                        ? 'Tiền tệ Game (Coins)'
-                        : selectedCategory === 'accounts'
-                        ? 'Tài khoản VIP'
-                        : selectedCategory === 'cards'
-                        ? 'Thẻ game / Gift Card'
-                        : 'Cày thuê (Boosting)'}
-                    </h3>
-                    <div className="brand-all-grid">
-                      {allGames.map((game) => {
-                        const totalOffers = game.items.reduce(
-                          (sum, item) => sum + item.offers,
-                          0
-                        );
-                        return (
-                          <div
-                            key={game.id}
-                            className="brand-all-block"
-                            onClick={() => navigateToCatalog(game)}
-                          >
-                            <span className="brand-all-name">{game.name}</span>
-                            <span className="brand-all-offers">{totalOffers} ưu đãi</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
+                  const filteredGames = gamesWithSellerItems.filter((game) => {
+                    const hasMatchingItemCategory = game.items && game.items.some(item => {
+                      const itemCat = item.category || 'coins';
+                      return itemCat === selectedCategory;
+                    });
+
+                    const matchesMainCategory =
+                      selectedCategory === 'all' || 
+                      game.category === selectedCategory ||
+                      hasMatchingItemCategory;
+
+                    const matchesSearch = game.name
+                      .toLowerCase()
+                      .includes(brandSearchQuery.toLowerCase());
+
+                    const hasSubTabItemCategory = game.items && game.items.some(item => {
+                      const itemCat = item.category || 'coins';
+                      return itemCat === activeBrandTab;
+                    });
+                    const matchesSubTab = 
+                      activeBrandTab === 'all' || 
+                      game.category === activeBrandTab ||
+                      hasSubTabItemCategory;
+
+                    return matchesMainCategory && matchesSearch && matchesSubTab;
+                  });
+
+                  const trendingGames = filteredGames.slice(0, 8);
+                  const allGames = filteredGames;
+
+                  if (filteredGames.length === 0) {
+                    return (
+                      <div className="empty-catalog-results">
+                        <span className="empty-icon">📂</span>
+                        <h4>Không tìm thấy thương hiệu nào!</h4>
+                        <p>
+                          Vui lòng nhập lại tên game hoặc thương hiệu khác trong thanh tìm kiếm bên trên.
+                        </p>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            setBrandSearchQuery('');
+                            setActiveBrandTab('all');
+                          }}
+                        >
+                          Đặt lại bộ lọc
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {/* Xu hướng (Trending) Blocks Grid */}
+                      <div className="directory-section-container">
+                        <h3 className="directory-section-title">Xu Hướng</h3>
+                        <div className="brand-trending-grid">
+                          {trendingGames.map((game) => {
+                            const totalOffers = game.items.reduce(
+                              (sum, item) => sum + item.offers,
+                              0
+                            );
+                            return (
+                              <div
+                                key={game.id}
+                                className="brand-trending-block"
+                                onClick={() => navigateToCatalog(game)}
+                              >
+                                <div className="brand-stripe-edge"></div>
+                                <div className="brand-block-content">
+                                  <h4 className="brand-block-title">{game.name}</h4>
+                                  <span className="brand-offers-pill">{totalOffers} ưu đãi</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Tất cả thương hiệu (All Brands) Grid */}
+                      <div className="directory-section-container" style={{ marginTop: '40px' }}>
+                        <h3 className="directory-section-title">
+                          Tất cả thương hiệu cho{' '}
+                          {selectedCategory === 'all'
+                            ? 'Trò chơi'
+                            : selectedCategory === 'coins'
+                              ? 'Tiền tệ Game (Coins)'
+                              : selectedCategory === 'accounts'
+                                ? 'Tài khoản VIP'
+                                : selectedCategory === 'cards'
+                                  ? 'Thẻ game / Gift Card'
+                                  : selectedCategory === 'boosting'
+                                    ? 'Cày thuê (Boosting)'
+                                    : selectedCategory === 'coaching'
+                                      ? 'Game Coaching'
+                                      : selectedCategory === 'gamepal'
+                                        ? 'GamePal'
+                                        : selectedCategory === 'items'
+                                          ? 'Vật phẩm game'
+                                          : selectedCategory === 'skin'
+                                            ? 'Trang phục & Skins'
+                                            : selectedCategory === 'software'
+                                              ? 'Phần mềm & Ứng dụng'
+                                              : selectedCategory === 'payment'
+                                                ? 'Thẻ thanh toán'
+                                                : 'Sản phẩm khác'}
+                        </h3>
+                        <div className="brand-all-grid">
+                          {allGames.map((game) => {
+                            const totalOffers = game.items.reduce(
+                              (sum, item) => sum + item.offers,
+                              0
+                            );
+                            return (
+                              <div
+                                key={game.id}
+                                className="brand-all-block"
+                                onClick={() => navigateToCatalog(game)}
+                              >
+                                <span className="brand-all-name">{game.name}</span>
+                                <span className="brand-all-offers">{totalOffers} ưu đãi</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            )}
           </div>
         </section>
       )}
@@ -257,10 +467,10 @@ export default function ProductCatalog({
                 {selectedCategory === 'coins'
                   ? 'Coins'
                   : selectedCategory === 'boosting'
-                  ? 'Boosting'
-                  : selectedCategory === 'accounts'
-                  ? 'Accounts'
-                  : 'Gift Cards'}
+                    ? 'Boosting'
+                    : selectedCategory === 'accounts'
+                      ? 'Accounts'
+                      : 'Gift Cards'}
               </h1>
               <button
                 className="btn btn-secondary share-btn-box"
@@ -391,14 +601,50 @@ export default function ProductCatalog({
 
             {/* Packages Lists & Sorting */}
             {(() => {
-              const filteredCatalogItems = selectedGame.items.filter((item) => {
+              const getItemCategory = (item) => {
+                if (item.category) return item.category;
+                const name = item.name.toLowerCase();
+                if (name.includes('code') || name.includes('thẻ') || name.includes('gift') || name.includes('card') || name.includes('sò') || name.includes('mã')) return 'cards';
+                if (name.includes('acc') || name.includes('tài khoản') || name.includes('rank') || name.includes('nick')) return 'accounts';
+                if (name.includes('cày') || name.includes('boosting') || name.includes('lên rank')) return 'boosting';
+                if (name.includes('coaching') || name.includes('dạy') || name.includes('hướng dẫn')) return 'coaching';
+                if (name.includes('gamepal') || name.includes('bạn chơi') || name.includes('chơi cùng')) return 'gamepal';
+                if (name.includes('vật phẩm') || name.includes('skin') || name.includes('gold') || name.includes('items') || name.includes('gói nạp gold') || name.includes('orb')) return 'items';
+                return 'coins';
+              };
+
+              // Merge sellerListings for this game into items for buyer view
+              const sellerItemsForGame = sellerListings.filter(
+                (sl) => sl.gameId === selectedGame.id
+              ).map((sl) => ({
+                id: sl.id,
+                name: sl.name,
+                price: sl.price,
+                badge: sl.badge || 'Người Bán Mới',
+                region: sl.region || 'Global',
+                offers: 1,
+                category: sl.category,
+                stock: sl.stock,
+                sellerName: sl.sellerName || 'Người Bán',
+                isSellerListing: true,
+              }));
+
+              const allItems = [
+                ...sellerItemsForGame,
+                ...selectedGame.items,
+              ];
+
+              const filteredCatalogItems = allItems.filter((item) => {
+                const itemCategory = getItemCategory(item);
+                const matchesCategory = !selectedCategory || selectedCategory === 'all' || itemCategory === selectedCategory;
+
                 const matchesSearch = item.name
                   .toLowerCase()
                   .includes(catalogSearchQuery.toLowerCase());
                 const matchesRegion =
                   catalogRegionFilter === 'all' ||
                   item.region.toLowerCase() === catalogRegionFilter.toLowerCase();
-                return matchesSearch && matchesRegion;
+                return matchesCategory && matchesSearch && matchesRegion;
               });
 
               const sortedCatalogItems = [...filteredCatalogItems].sort((a, b) => {
@@ -448,18 +694,36 @@ export default function ProductCatalog({
                           key={item.id}
                           className="catalog-package-card"
                           onClick={() => navigateToDetail(selectedGame, item)}
+                          style={item.isSellerListing ? { border: '1px solid rgba(251,191,36,0.35)', boxShadow: '0 0 0 1px rgba(251,191,36,0.1) inset' } : {}}
                         >
                           <div className="package-region-row">
                             <span className="package-region-flag">
                               {item.region === 'Vietnam'
                                 ? '🇻🇳'
                                 : item.region === 'Global'
-                                ? '🌐'
-                                : '🇺🇸'}
+                                  ? '🌐'
+                                  : '🇺🇸'}
                             </span>
                             <span className="package-region-name">{item.region}</span>
+                            {item.isSellerListing && (
+                              <span style={{
+                                marginLeft: 'auto',
+                                background: 'rgba(251,191,36,0.15)',
+                                color: '#fbbf24',
+                                border: '1px solid rgba(251,191,36,0.3)',
+                                borderRadius: '4px',
+                                padding: '1px 6px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                              }}>🆕 Mới</span>
+                            )}
                           </div>
                           <h4 className="package-card-title">{item.name}</h4>
+                          {item.isSellerListing && item.sellerName && (
+                            <div style={{ fontSize: '11px', color: '#9ea2a9', marginBottom: '4px' }}>
+                              👤 {item.sellerName}
+                            </div>
+                          )}
                           <div className="package-card-footer justify-between">
                             <span className="package-offers-badge">{item.offers} ưu đãi</span>
                             <span className="package-price-text">
@@ -549,9 +813,8 @@ export default function ProductCatalog({
                 <div className="detail-tabs-wrapper">
                   <div className="detail-tabs-header">
                     <span
-                      className={`tab-item-link ${
-                        activeDetailTab === 'description' ? 'active' : ''
-                      }`}
+                      className={`tab-item-link ${activeDetailTab === 'description' ? 'active' : ''
+                        }`}
                       onClick={() => setActiveDetailTab('description')}
                     >
                       Mô tả sản phẩm
@@ -589,55 +852,117 @@ export default function ProductCatalog({
                           </li>
                         </ul>
                       </div>
-                    ) : (
-                      <div className="reviews-tab-pane">
-                        <div className="reviews-summary-score justify-between">
-                          <div>
-                            <div className="score-value">4.9 / 5</div>
-                            <div className="stars-row">
-                              <span className="star-icon">★</span>
-                              <span className="star-icon">★</span>
-                              <span className="star-icon">★</span>
-                              <span className="star-icon">★</span>
-                              <span className="star-icon">★</span>
-                            </div>
-                            <span className="reviews-count-label">
-                              Phản hồi tích cực đạt 99.8% từ khách hàng
-                            </span>
-                          </div>
-                          <div className="reviews-recommend">
-                            🚀 <strong>Khuyên dùng:</strong> 99% khách hàng rất hài lòng về tốc độ
-                            bàn giao của người bán này.
-                          </div>
-                        </div>
+                                        ) : (() => {
+                      const reviews = productReviews[selectedItem.id] || [];
+                      const averageScore = reviews.length > 0
+                        ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+                        : '5.0';
+                      const positiveRate = reviews.length > 0
+                        ? ((reviews.filter(r => r.rating >= 4).length / reviews.length) * 100).toFixed(1)
+                        : '100';
 
-                        <div className="buyer-reviews-list">
-                          {MOCK_REVIEWS.map((rev) => (
-                            <div key={rev.id} className="review-item">
-                              <div className="review-item-header justify-between">
-                                <div className="buyer-profile">
-                                  <span className="avatar-letter">
-                                    {rev.user.slice(0, 2).toUpperCase()}
-                                  </span>
-                                  <div>
-                                    <span className="buyer-name">{rev.user}</span>
-                                    <div className="buyer-rating-stars">
-                                      {Array.from({ length: rev.rating }).map((_, i) => (
-                                        <span key={i} className="star-icon">
-                                          ★
-                                        </span>
-                                      ))}
-                                    </div>
+                      return (
+                        <div className="reviews-tab-pane">
+                          {/* Score Summary */}
+                          <div className="reviews-summary-score justify-between">
+                            <div>
+                              <div className="score-value">{averageScore} / 5</div>
+                              <div className="stars-row">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <span key={i} className="star-icon" style={{ color: i < Math.round(averageScore) ? '#f0a000' : '#4a4d52' }}>★</span>
+                                ))}
+                              </div>
+                              <span className="reviews-count-label">
+                                Phản hồi tích cực đạt {positiveRate}% ({reviews.length} đánh giá)
+                              </span>
+                            </div>
+                            <div className="reviews-recommend">
+                              🚀 <strong>Đánh giá thực tế:</strong> {reviews.length > 0 ? `99% người mua đề xuất sản phẩm này dựa trên ${reviews.length} đánh giá thật từ khách hàng.` : 'Sản phẩm chưa có đánh giá. Hãy là người đầu tiên mua và nhận xét!'}
+                            </div>
+                          </div>
+
+                          {/* Write a review form (Only if logged in) */}
+                          <div className="write-review-card">
+                            <h4 className="write-review-title">Viết đánh giá của bạn</h4>
+                            {currentUser ? (
+                              <form onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!newComment.trim()) return;
+                                handleAddReview(selectedItem.id, newRating, newComment);
+                                setNewComment('');
+                                setNewRating(5);
+                              }} className="review-form">
+                                <div className="rating-select-row">
+                                  <span>Chọn số sao:</span>
+                                  <div className="rating-stars-input">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <span
+                                        key={star}
+                                        className="star-clickable-icon"
+                                        style={{ color: star <= newRating ? '#f0a000' : '#72767d', cursor: 'pointer', fontSize: '20px', marginRight: '4px' }}
+                                        onClick={() => setNewRating(star)}
+                                      >
+                                        ★
+                                      </span>
+                                    ))}
                                   </div>
                                 </div>
-                                <span className="review-date">{rev.date}</span>
+                                <div className="review-textarea-group">
+                                  <textarea
+                                    className="review-form-textarea"
+                                    rows="3"
+                                    placeholder="Chia sẻ trải nghiệm mua hàng của bạn tại đây..."
+                                    value={newComment}
+                                    onChange={(e) => setNewComment(e.target.value)}
+                                    required
+                                  ></textarea>
+                                </div>
+                                <button type="submit" className="btn btn-primary btn-sm" style={{ marginTop: '10px', alignSelf: 'flex-start' }}>
+                                  Gửi đánh giá
+                                </button>
+                              </form>
+                            ) : (
+                              <div className="review-login-prompt">
+                                🔒 Bạn cần <span className="login-link-inline" onClick={() => setActiveModal('login')} style={{ color: 'var(--brand-red)', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Đăng nhập</span> để gửi đánh giá sản phẩm.
                               </div>
-                              <p className="review-comment">{rev.comment}</p>
-                            </div>
-                          ))}
+                            )}
+                          </div>
+
+                          {/* Reviews List */}
+                          <div className="buyer-reviews-list">
+                            {reviews.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '30px 0', color: '#72767d', fontSize: '13.5px' }}>
+                                Chưa có đánh giá nào cho gói sản phẩm này.
+                              </div>
+                            ) : (
+                              reviews.map((rev) => (
+                                <div key={rev.id} className="review-item">
+                                  <div className="review-item-header justify-between">
+                                    <div className="buyer-profile">
+                                      <span className="avatar-letter">
+                                        {rev.user.slice(0, 2).toUpperCase()}
+                                      </span>
+                                      <div>
+                                        <span className="buyer-name">{rev.user}</span>
+                                        <div className="buyer-rating-stars">
+                                          {Array.from({ length: 5 }).map((_, i) => (
+                                            <span key={i} className="star-icon" style={{ color: i < rev.rating ? '#f0a000' : '#4a4d52' }}>
+                                              ★
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <span className="review-date">{rev.date}</span>
+                                  </div>
+                                  <p className="review-comment">{rev.comment}</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

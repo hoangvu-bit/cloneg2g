@@ -15,6 +15,7 @@ export default function Checkout({
   checkoutProcessing,
   handleConfirmPayment,
   triggerToast,
+  userWalletBalance = 0,
 }) {
   if (currentView !== 'checkout') return null;
 
@@ -310,7 +311,61 @@ export default function Checkout({
                 </div>
               </div>
 
-              <form onSubmit={handleConfirmPayment} style={{ marginTop: '24px' }}>
+              {/* Wallet balance display */}
+              {(() => {
+                const gatewayFee = activePaymentTab === 'momo'
+                  ? 15000
+                  : activePaymentTab === 'zalopay'
+                  ? 12000
+                  : activePaymentTab === 'banking'
+                  ? 10000
+                  : 25000;
+                const totalCost = getCartTotal() + gatewayFee;
+                const isSufficient = userWalletBalance >= totalCost;
+
+                return (
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(255,51,51,0.08) 0%, rgba(30,30,35,0.8) 100%)',
+                    border: `1px solid ${isSufficient ? 'rgba(52,199,89,0.3)' : 'rgba(255,51,51,0.3)'}`,
+                    borderRadius: '10px',
+                    padding: '14px 16px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '18px' }}>💰</span>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary, #9ea2a9)', fontSize: '11px', fontWeight: 500 }}>Số dư ví G2G</div>
+                        <div style={{
+                          color: isSufficient ? '#34c759' : '#ff3333',
+                          fontWeight: 700, fontSize: '16px'
+                        }}>
+                          {userWalletBalance.toLocaleString('vi-VN')}₫
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      {isSufficient ? (
+                        <span style={{
+                          background: 'rgba(52,199,89,0.15)', color: '#34c759',
+                          border: '1px solid rgba(52,199,89,0.3)',
+                          borderRadius: '6px', padding: '4px 10px', fontSize: '12px', fontWeight: 600
+                        }}>✓ Đủ số dư</span>
+                      ) : (
+                        <span style={{
+                          background: 'rgba(255,51,51,0.12)', color: '#ff3333',
+                          border: '1px solid rgba(255,51,51,0.3)',
+                          borderRadius: '6px', padding: '4px 10px', fontSize: '12px', fontWeight: 600
+                        }}>⚠ Thiếu {(totalCost - userWalletBalance).toLocaleString('vi-VN')}₫</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <form onSubmit={handleConfirmPayment} style={{ marginTop: '0' }}>
                 <div className="checkout-agreement">
                   <input type="checkbox" id="checkoutAgree" required />
                   <label htmlFor="checkoutAgree">

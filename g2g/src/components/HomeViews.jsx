@@ -137,7 +137,7 @@ export default function HomeViews({
 
             <div
               className="g2g-category-large-card"
-              onClick={() => triggerToast('Dịch vụ Game Coaching sẽ được ra mắt sớm!')}
+              onClick={() => navigateToCategory('coaching')}
             >
               <span className="category-beta-badge">Beta</span>
               <div className="category-large-icon">
@@ -161,7 +161,7 @@ export default function HomeViews({
 
             <div
               className="g2g-category-large-card"
-              onClick={() => triggerToast('Khám phá các đại sứ GamePal ở mục bên dưới!')}
+              onClick={() => navigateToCategory('gamepal')}
             >
               <span className="category-beta-badge">Beta</span>
               <div className="category-large-icon">
@@ -190,7 +190,7 @@ export default function HomeViews({
 
             <div
               className="g2g-category-horizontal-card"
-              onClick={() => triggerToast('Dịch vụ nạp Vật phẩm đang chuẩn bị cập nhật!')}
+              onClick={() => navigateToCategory('items')}
             >
               <div className="category-horiz-icon">📦</div>
               <span className="category-horiz-name">Vật phẩm</span>
@@ -209,7 +209,7 @@ export default function HomeViews({
             {/* Row 3: Smaller Horizontal Cards */}
             <div
               className="g2g-category-horizontal-card"
-              onClick={() => triggerToast('Thị trường trang phục/Skin đang bảo trì!')}
+              onClick={() => navigateToCategory('skin')}
             >
               <div className="category-horiz-icon">🛡️</div>
               <span className="category-horiz-name">Skin</span>
@@ -217,7 +217,7 @@ export default function HomeViews({
 
             <div
               className="g2g-category-horizontal-card"
-              onClick={() => triggerToast('Dịch vụ Nạp tiền điện thoại đang liên kết nhà mạng!')}
+              onClick={() => navigateToCategory('topup')}
             >
               <div className="category-horiz-icon">📱</div>
               <span className="category-horiz-name">Nạp tiền điện thoại</span>
@@ -225,7 +225,7 @@ export default function HomeViews({
 
             <div
               className="g2g-category-horizontal-card"
-              onClick={() => triggerToast('Thị trường bản quyền phần mềm đang liên kết!')}
+              onClick={() => navigateToCategory('software')}
             >
               <div className="category-horiz-icon">💻</div>
               <span className="category-horiz-name">Phần mềm &amp; Ứng dụng</span>
@@ -233,9 +233,7 @@ export default function HomeViews({
 
             <div
               className="g2g-category-horizontal-card"
-              onClick={() =>
-                triggerToast('Các gói nạp thẻ thanh toán visa/mastercard đang cập nhật!')
-              }
+              onClick={() => navigateToCategory('payment')}
             >
               <div className="category-horiz-icon">💳</div>
               <span className="category-horiz-name">Thẻ thanh toán</span>

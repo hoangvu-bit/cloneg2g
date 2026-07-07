@@ -25,6 +25,7 @@ export default function Header({
   sellerTab,
   setSellerTab,
   triggerToast,
+  userWalletBalance = 0,
 }) {
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
   const [expandedSubmenu, setExpandedSubmenu] = React.useState(null); // 'selling' | 'settings' | null
@@ -178,6 +179,34 @@ export default function Header({
                   <span className="vn-text">VN</span>
                 </div>
 
+                {/* Wallet Balance Badge */}
+                <div
+                  className="user-wallet-pill-badge"
+                  onClick={() => pushRoute('category-catalog', { category: 'topup' })}
+                  title="Nhấn để nạp tiền vào ví"
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: userWalletBalance > 0
+                      ? 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.08) 100%)'
+                      : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${userWalletBalance > 0 ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.1)'}`,
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    color: userWalletBalance > 0 ? '#10b981' : '#9ea2a9',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    transition: 'all 0.3s ease',
+                    marginRight: '6px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span style={{ fontSize: '14px' }}>💰</span>
+                  <span>{userWalletBalance.toLocaleString('vi-VN')}₫</span>
+                </div>
+
                 {/* Mua sắm ngay button */}
                 <button className="buy-now-header-btn" onClick={() => pushRoute('home')}>
                   Mua sắm ngay
@@ -258,9 +287,11 @@ export default function Header({
                         </div>
                       </div>
                       <div className="dropdown-balance-row">
-                        <span className="balance-label">Số dư có sẵn</span>
+                        <span className="balance-label">Số dư tài khoản (VND)</span>
                         <div className="balance-value-container">
-                          <span className="balance-value">0.00 <span className="currency-text">USD</span></span>
+                          <span className="balance-value" style={{ color: '#10b981', fontWeight: 'bold' }}>
+                            {userWalletBalance.toLocaleString('vi-VN')} ₫
+                          </span>
                         </div>
                       </div>
                     </div>

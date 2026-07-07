@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Promobanners({ triggerToast }) {
+export default function Promobanners({ triggerToast, pushRoute, setActiveModal }) {
   const handleButtonClick = (actionName) => {
     if (triggerToast) {
       triggerToast(`Tính năng ${actionName} đang được xử lý!`);
@@ -32,7 +32,13 @@ export default function Promobanners({ triggerToast }) {
           <div className="affiliate-banner-action">
             <button 
               className="btn-orange" 
-              onClick={() => handleButtonClick('Đăng ký Affiliate')}
+              onClick={() => {
+                if (pushRoute) {
+                  pushRoute('seller-landing');
+                } else if (setActiveModal) {
+                  setActiveModal('seller');
+                }
+              }}
             >
               Bắt Đầu Kiếm Tiền
             </button>

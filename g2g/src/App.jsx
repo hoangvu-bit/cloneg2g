@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { getProductById, fetchAndMapProducts } from "./API/ProductApi";
 import './App.css';
-import { 
-  MOCK_GAMES, 
-  MOCK_SELLERS, 
-  MOCK_REVIEWS, 
-  GAMEPAL_PARTNERS, 
-  COACHING_PARTNERS, 
-  GAMEPAL_AVATARS, 
-  TRENDING_BLOCKS, 
-  FLASH_SALE_ITEMS 
+import {
+  MOCK_GAMES,
+  MOCK_SELLERS,
+  MOCK_REVIEWS,
+  GAMEPAL_PARTNERS,
+  COACHING_PARTNERS,
+  GAMEPAL_AVATARS,
+  TRENDING_BLOCKS,
+  FLASH_SALE_ITEMS
 } from './MockData';
 
 import Header from './components/Header';
@@ -23,10 +24,29 @@ import Modals from './components/Modals';
 import SellerLanding from './components/SellerLanding';
 
 function App() {
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  useEffect(() => {
+    async function loadApiProducts() {
+      const apiGames = await fetchAndMapProducts();
+      if (apiGames && apiGames.length > 0) {
+        // Clear static list and replace with dynamic API data
+        MOCK_GAMES.length = 0;
+        apiGames.forEach(game => MOCK_GAMES.push(game));
+        
+        // Reset category filter selections
+        setFilterSelectedGames(MOCK_GAMES.map(g => g.id));
+        
+        // Trigger UI re-render
+        setForceUpdate(prev => prev + 1);
+      }
+    }
+    loadApiProducts();
+  }, []);
   const [theme, setTheme] = useState('dark');
   const [currentView, setCurrentView] = useState('home'); // 'home', 'catalog', 'category-catalog', 'product-detail', 'checkout', 'orders'
   const [isTransitioning, setIsTransitioning] = useState(false);
-  
+
   // Navigation Selection States
   const [selectedGame, setSelectedGame] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -34,7 +54,7 @@ function App() {
   const [detailQuantity, setDetailQuantity] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState('all'); // 'all', 'coins', 'accounts', 'cards', 'boosting'
   const [activeDetailTab, setActiveDetailTab] = useState('description'); // 'description', 'reviews'
-  
+
   // Sidebar Filtering States (Category Catalog View)
   const [filterMinPrice, setFilterMinPrice] = useState('');
   const [filterMaxPrice, setFilterMaxPrice] = useState('');
@@ -51,16 +71,17 @@ function App() {
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
   const [catalogRegionFilter, setCatalogRegionFilter] = useState('all'); // 'all', 'Vietnam', 'Global', 'Asia'
   const [catalogSortOption, setCatalogSortOption] = useState('recommended'); // 'recommended', 'cheapest'
-  
+
   // Shopping Cart State
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  
+
   // Checkouts & Order Tracking
   const [activePaymentTab, setActivePaymentTab] = useState('momo');
   const [checkoutProcessing, setCheckoutProcessing] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [orders, setOrders] = useState([
+
     {
       id: 'G2G-583019',
       date: '01/07/2026',
@@ -84,7 +105,74 @@ function App() {
       paymentMethod: 'Chuyển khoản NH'
     }
   ]);
+  const handleSelectProduct = async (productId) => {
+    setIsTransitioning(true);
 
+    try {
+      // 1. Gọi API lấy dữ liệu thật (đã được map định dạng chuẩn game)
+      const formattedItem = await getProductById(productId);
+
+      // 2. Thiết lập selectedItem và selectedGame tương ứng
+      setSelectedItem(formattedItem);
+      
+      const gameObj = MOCK_GAMES.find(g => g.id === formattedItem.gameId) || MOCK_GAMES[0];
+      setSelectedGame(gameObj);
+
+      setCurrentView('product-detail');
+    } catch (error) {
+      console.error("Lỗi:", error);
+      triggerToast("Không thể tải thông tin sản phẩm");
+    } finally {
+      setIsTransitioning(false);
+    }
+  };
+
+  // Product Reviews State & Submission Handler
+  const [productReviews, setProductReviews] = useState(() => {
+    const saved = localStorage.getItem('g2g_product_reviews');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return {
+      'roblox-1': [
+        { id: 1, user: 'HoangVu', rating: 5, comment: 'Giao hàng siêu nhanh, chỉ mất 1 phút là có Robux rồi!', date: '05/07/2026' },
+        { id: 2, user: 'AnhGamer', rating: 5, comment: 'Sản phẩm uy tín, shop hỗ trợ nhiệt tình lắm.', date: '04/07/2026' }
+      ],
+      'roblox-2': [
+        { id: 3, user: 'GamerVip', rating: 4, comment: 'Hàng chất lượng, giá rẻ hơn các chỗ khác.', date: '03/07/2026' }
+      ]
+    };
+  });
+
+  const handleAddReview = (productId, rating, comment) => {
+    if (!currentUser) {
+      triggerToast('Vui lòng đăng nhập để viết đánh giá!');
+      return;
+    }
+    const newReview = {
+      id: Date.now(),
+      user: currentUser.name,
+      rating: Number(rating),
+      comment: comment.trim(),
+      date: new Date().toLocaleDateString('vi-VN')
+    };
+
+    setProductReviews(prev => {
+      const currentList = prev[productId] || [];
+      const updated = {
+        ...prev,
+        [productId]: [newReview, ...currentList]
+      };
+      localStorage.setItem('g2g_product_reviews', JSON.stringify(updated));
+      return updated;
+    });
+
+    triggerToast('Cảm ơn bạn đã gửi đánh giá sản phẩm!');
+  };
   // Card inputs
   const [cardNo, setCardNo] = useState('');
   const [cardExp, setCardExp] = useState('');
@@ -101,6 +189,8 @@ function App() {
 
   // Modals & General UX
   const [activeModal, setActiveModal] = useState(null);
+  const [showInsufficientFundsModal, setShowInsufficientFundsModal] = useState(false);
+  const [insufficientFundsData, setInsufficientFundsData] = useState({ required: 0, current: 0 });
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('currentUser');
@@ -109,6 +199,27 @@ function App() {
       return null;
     }
   });
+
+  // Buyer wallet balance state (initialized from localStorage, defaults to 0₫)
+  const [userWalletBalance, setUserWalletBalance] = useState(() => {
+    const saved = localStorage.getItem('g2g_user_wallet_balance');
+    return saved ? Number(saved) : 0;
+  });
+
+  const handleDepositToWallet = (amount) => {
+    if (!currentUser) {
+      triggerToast('Vui lòng đăng nhập để nạp tiền vào ví tài khoản!');
+      setActiveModal('login');
+      return;
+    }
+    setUserWalletBalance(prev => {
+      const updated = prev + amount;
+      localStorage.setItem('g2g_user_wallet_balance', String(updated));
+      return updated;
+    });
+    triggerToast(`Nạp tiền thành công! Đã cộng ${amount.toLocaleString('vi-VN')}₫ vào tài khoản.`);
+  };
+
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [signupUsername, setSignupUsername] = useState('');
@@ -119,11 +230,41 @@ function App() {
   const [toastMessage, setToastMessage] = useState(null);
 
   // Seller States & Data (Starts empty for a newly registered seller)
-  const [sellerWalletBalance, setSellerWalletBalance] = useState(0); // Starts at 0 ₫
-  const [sellerWalletTransactions, setSellerWalletTransactions] = useState([]); // Empty transaction history
-  const [sellerListings, setSellerListings] = useState([]); // No listings initially
-  const [sellerOrders, setSellerOrders] = useState([]); // No orders initially
+  const [sellerWalletBalance, setSellerWalletBalance] = useState(() => {
+    const saved = localStorage.getItem('g2g_seller_wallet_balance');
+    return saved ? Number(saved) : 0;
+  });
+  const [sellerWalletTransactions, setSellerWalletTransactions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('g2g_seller_wallet_transactions');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [sellerListings, setSellerListings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('g2g_seller_listings');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  }); // Persisted seller listings
+  const [sellerOrders, setSellerOrders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('g2g_seller_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [sellerTab, setSellerTab] = useState('overview'); // 'overview', 'add-listing', 'listings', 'orders', 'wallet'
+
+  useEffect(() => {
+    localStorage.setItem('g2g_seller_wallet_balance', String(sellerWalletBalance));
+  }, [sellerWalletBalance]);
+
+  useEffect(() => {
+    localStorage.setItem('g2g_seller_wallet_transactions', JSON.stringify(sellerWalletTransactions));
+  }, [sellerWalletTransactions]);
+
+  useEffect(() => {
+    localStorage.setItem('g2g_seller_orders', JSON.stringify(sellerOrders));
+  }, [sellerOrders]);
 
   // Chat System State
   const [showChatDrawer, setShowChatDrawer] = useState(false);
@@ -297,7 +438,8 @@ function App() {
         setCatalogSortOption('recommended');
       } else if (view === 'product-detail') {
         const game = params.game || MOCK_GAMES.find(g => g.id === params.gameId);
-        const item = params.item || (game && game.items.find(i => i.id === params.itemId)) || (game && game.items[0]);
+        // Use params.item directly (works for both MOCK items and sellerListings items)
+        const item = params.item || (game && game.items.find(i => i.id === params.itemId));
         const seller = params.seller || MOCK_SELLERS[0];
         if (game) setSelectedGame(game);
         if (item) setSelectedItem(item);
@@ -335,7 +477,32 @@ function App() {
         const gameId = parts[2];
         const itemId = parts[3];
         const game = MOCK_GAMES.find(g => g.id === gameId);
-        const item = game ? game.items.find(i => i.id === itemId) : null;
+
+        // First look in MOCK_GAMES items
+        let item = game ? game.items.find(i => i.id === itemId) : null;
+
+        // Fallback: look in persisted sellerListings
+        if (!item) {
+          try {
+            const savedListings = JSON.parse(localStorage.getItem('g2g_seller_listings') || '[]');
+            const sl = savedListings.find(l => l.id === itemId);
+            if (sl) {
+              item = {
+                id: sl.id,
+                name: sl.name,
+                price: sl.price,
+                badge: sl.badge || 'Người Bán Mới',
+                region: sl.region || 'Global',
+                offers: 1,
+                category: sl.category,
+                stock: sl.stock,
+                sellerName: sl.sellerName || 'Người Bán',
+                isSellerListing: true,
+              };
+            }
+          } catch (e) { /* ignore */ }
+        }
+
         if (game && item) {
           pushRoute('product-detail', { game, item }, replace);
         } else {
@@ -387,7 +554,14 @@ function App() {
             const gameId = parts[2];
             const itemId = parts[3];
             const game = MOCK_GAMES.find(g => g.id === gameId);
-            const item = game ? game.items.find(i => i.id === itemId) : null;
+            let item = game ? game.items.find(i => i.id === itemId) : null;
+            if (!item) {
+              try {
+                const savedListings = JSON.parse(localStorage.getItem('g2g_seller_listings') || '[]');
+                const sl = savedListings.find(l => l.id === itemId);
+                if (sl) item = { id: sl.id, name: sl.name, price: sl.price, badge: sl.badge || 'Người Bán Mới', region: sl.region || 'Global', offers: 1, category: sl.category, stock: sl.stock, sellerName: sl.sellerName, isSellerListing: true };
+              } catch (e) { /* ignore */ }
+            }
             if (game && item) {
               setCurrentView('product-detail');
               setSelectedGame(game);
@@ -426,9 +600,14 @@ function App() {
         textIcon: card.name.substring(0, 3).toUpperCase(),
         description: `Thị trường giao dịch ${card.name} an toàn, giao dịch nhanh chóng với nhiều ưu đãi hấp dẫn.`,
         items: [
-          { id: `${card.gameId}-item-1`, name: `Gói nạp Gold ${card.name} 10M`, price: 150000, badge: 'Giao hàng nhanh', region: 'Global', offers: 15 },
-          { id: `${card.gameId}-item-2`, name: `Gói nạp Gold ${card.name} 50M`, price: 680000, badge: 'Được bảo hiểm', region: 'Global', offers: 28 },
-          { id: `${card.gameId}-item-3`, name: `Acc ${card.name} Cấp Cao VIP`, price: 1200000, badge: 'Hot Deal', region: 'Global', offers: 8 }
+          { id: `${card.gameId}-item-1`, name: `Gói nạp Gold ${card.name} 10M`, price: 150000, badge: 'Giao hàng nhanh', region: 'Global', offers: 15, category: 'coins' },
+          { id: `${card.gameId}-item-2`, name: `Gói nạp Gold ${card.name} 50M`, price: 680000, badge: 'Được bảo hiểm', region: 'Global', offers: 28, category: 'coins' },
+          { id: `${card.gameId}-item-3`, name: `Acc ${card.name} Cấp Cao VIP`, price: 1200000, badge: 'Hot Deal', region: 'Global', offers: 8, category: 'accounts' },
+          { id: `${card.gameId}-item-4`, name: `Dịch vụ Coaching Hướng dẫn Build đồ ${card.name}`, price: 120000, badge: 'HLV Pro', region: 'Global', offers: 6, category: 'coaching' },
+          { id: `${card.gameId}-item-5`, name: `Cày thuê cấp tốc Lv.1 - Lv.100 ${card.name}`, price: 450000, badge: 'Giao nhanh', region: 'Global', offers: 11, category: 'boosting' },
+          { id: `${card.gameId}-item-6`, name: `Mã kích hoạt Key Giftcard ${card.name}`, price: 95000, badge: 'Auto Send', region: 'Global', offers: 4, category: 'cards' },
+          { id: `${card.gameId}-item-7`, name: `Bạn chơi cùng (GamePal) kéo ải ${card.name}`, price: 80000, badge: 'Online 24/7', region: 'Global', offers: 7, category: 'gamepal' },
+          { id: `${card.gameId}-item-8`, name: `Vật phẩm quý hiếm - Divine Orb ${card.name}`, price: 250000, badge: 'Giá rẻ nhất', region: 'Global', offers: 9, category: 'items' },
         ]
       };
       MOCK_GAMES.push(foundGame);
@@ -445,9 +624,32 @@ function App() {
   };
 
   // Add Item to Shopping Cart
-  const handleAddToCart = (item, game, seller, quantity) => {
-    const unitPrice = Math.floor(item.price * seller.multiplier);
-    const existingIndex = cart.findIndex(c => c.itemId === item.id && c.sellerName === seller.name);
+  const handleAddToCart = (item, game = {}, seller = {}, quantity = 1) => {
+    // 1. Force Login Check
+    if (!currentUser) {
+      triggerToast('Vui lòng đăng nhập để tiếp tục mua sắm!');
+      setActiveModal('login');
+      return;
+    }
+
+    const sellerName = seller.name || item.sellerName || 'Hệ thống';
+    const isSelfPurchase = currentUser && item.sellerName && item.sellerName === currentUser.name;
+    // 2. Prevent buying own items
+    if (isSelfPurchase) {
+      triggerToast('Bạn không thể mua sản phẩm của chính mình đăng bán!');
+      return;
+    }
+
+    // 3. Stock Check
+    if (item.stock !== undefined && quantity > item.stock) {
+      triggerToast(`Không đủ số lượng sản phẩm trong kho! Chỉ còn ${item.stock} sản phẩm.`);
+      return;
+    }
+
+    const multiplier = seller.multiplier !== undefined ? seller.multiplier : 1;
+    const unitPrice = Math.floor((item.price || item.unitPrice || 0) * multiplier);
+    
+    const existingIndex = cart.findIndex(c => c.itemId === item.id && c.sellerName === sellerName);
 
     if (existingIndex > -1) {
       const updatedCart = [...cart];
@@ -455,21 +657,21 @@ function App() {
       setCart(updatedCart);
     } else {
       const newCartItem = {
-        cartId: Date.now() + Math.random().toString(36).substr(2, 5),
+        cartId: item.cartId || (Date.now() + Math.random().toString(36).substr(2, 5)),
         itemId: item.id,
-        itemName: item.name,
-        gameId: game.id,
-        gameName: game.name,
+        itemName: item.name || item.itemName,
+        gameId: game.id || item.id,
+        gameName: game.name || 'Dịch vụ trực tuyến',
         price: unitPrice,
         qty: quantity,
-        sellerName: seller.name,
-        textIcon: game.textIcon,
-        color: game.color,
-        badge: item.badge
+        sellerName: sellerName,
+        textIcon: game.textIcon || item.textIcon || '⚙️',
+        color: game.color || item.color || 'var(--dark-box)',
+        badge: item.badge || 'Official'
       };
       setCart(prev => [...prev, newCartItem]);
     }
-    triggerToast(`Đã thêm ${quantity} x "${item.name}" từ ${seller.name} vào giỏ hàng!`);
+    triggerToast(`Đã thêm ${quantity} x "${item.name || item.itemName}" vào giỏ hàng!`);
     setIsCartOpen(true);
   };
 
@@ -494,20 +696,43 @@ function App() {
   };
 
   // Buy Now
-  const handleBuyNow = (item, game, seller, quantity) => {
-    const unitPrice = Math.floor(item.price * seller.multiplier);
+  const handleBuyNow = (item, game = {}, seller = {}, quantity = 1) => {
+    // 1. Force Login Check
+    if (!currentUser) {
+      triggerToast('Vui lòng đăng nhập để mua hàng!');
+      setActiveModal('login');
+      return;
+    }
+
+    const sellerName = seller.name || item.sellerName || 'Hệ thống';
+    const isSelfPurchase = currentUser && item.sellerName && item.sellerName === currentUser.name;
+    // 2. Prevent buying own items
+    if (isSelfPurchase) {
+      triggerToast('Bạn không thể mua sản phẩm của chính mình đăng bán!');
+      return;
+    }
+
+    // 3. Stock Check
+    if (item.stock !== undefined && quantity > item.stock) {
+      triggerToast(`Không đủ số lượng sản phẩm trong kho! Chỉ còn ${item.stock} sản phẩm.`);
+      return;
+    }
+
+    const multiplier = seller.multiplier !== undefined ? seller.multiplier : 1;
+    const unitPrice = Math.floor((item.price || item.unitPrice || 0) * multiplier);
+    
     const newCartItem = {
-      cartId: Date.now() + Math.random().toString(36).substr(2, 5),
+      cartId: item.cartId || (Date.now() + Math.random().toString(36).substr(2, 5)),
       itemId: item.id,
-      itemName: item.name,
-      gameId: game.id,
-      gameName: game.name,
+      itemName: item.name || item.itemName,
+      gameId: game.id || item.id,
+      gameName: game.name || 'Dịch vụ trực tuyến',
       price: unitPrice,
       qty: quantity,
-      sellerName: seller.name,
-      textIcon: game.textIcon,
-      color: game.color,
-      badge: item.badge
+      sellerName: sellerName,
+      textIcon: game.textIcon || item.textIcon || '⚙️',
+      color: game.color || item.color || 'var(--dark-box)',
+      badge: item.badge || 'Official'
     };
     setCart([newCartItem]);
     pushRoute('checkout');
@@ -518,11 +743,27 @@ function App() {
     e.preventDefault();
     if (cart.length === 0) return;
 
+    const gatewayFee = activePaymentTab === 'momo' ? 15000 :
+                       activePaymentTab === 'zalopay' ? 12000 :
+                       activePaymentTab === 'banking' ? 10000 : 25000;
+    const totalCost = getCartTotal() + gatewayFee;
+    if (userWalletBalance < totalCost) {
+      setInsufficientFundsData({ required: totalCost, current: userWalletBalance });
+      setShowInsufficientFundsModal(true);
+      return;
+    }
+
     setCheckoutProcessing(true);
     setTimeout(() => {
       setCheckoutProcessing(false);
       setCheckoutSuccess(true);
-      
+
+      setUserWalletBalance(prev => {
+        const updated = prev - totalCost;
+        localStorage.setItem('g2g_user_wallet_balance', String(updated));
+        return updated;
+      });
+
       const newOrders = cart.map(item => ({
         id: `G2G-${Math.floor(100000 + Math.random() * 900000)}`,
         date: new Date().toLocaleDateString('vi-VN'),
@@ -533,8 +774,8 @@ function App() {
         sellerName: item.sellerName,
         status: 'pending',
         paymentMethod: activePaymentTab === 'momo' ? 'Ví MoMo' :
-                      activePaymentTab === 'zalopay' ? 'Ví ZaloPay' :
-                      activePaymentTab === 'banking' ? 'Chuyển khoản NH' : 'Thẻ Quốc Thế'
+          activePaymentTab === 'zalopay' ? 'Ví ZaloPay' :
+            activePaymentTab === 'banking' ? 'Chuyển khoản NH' : 'Thẻ Quốc Thế'
       }));
 
       setOrders(prev => [...newOrders, ...prev]);
@@ -556,7 +797,7 @@ function App() {
 
     const userMsg = { sender: 'user', text: chatInputText };
     const targetChat = chats.find(c => c.id === activeChatId);
-    
+
     setChats(prev => prev.map(c => {
       if (c.id === activeChatId) {
         return { ...c, messages: [...c.messages, userMsg] };
@@ -619,7 +860,7 @@ function App() {
 
     const normalizedMail = loginEmail.replace(/[\s-]/g, "").trim();
     triggerToast('Đăng nhập thành công (Bypass Backend)!');
-    
+
     // Create mock user object
     const userObj = {
       token: "mock-token-12345",
@@ -643,7 +884,7 @@ function App() {
 
   const handleSignupSubmit = (e, customData = null) => {
     if (e && e.preventDefault) e.preventDefault();
-    
+
     const name = customData ? customData.name : signupUsername;
     const email = customData ? customData.mail : signupEmail;
     const password = customData ? customData.password : signupPassword;
@@ -655,7 +896,7 @@ function App() {
 
     const normalizedMail = email.replace(/[\s-]/g, "").trim();
     triggerToast('Đăng ký tài khoản thành công!');
-    
+
     // Automatically log in the user after signup
     const userObj = {
       token: "mock-token-12345",
@@ -664,7 +905,7 @@ function App() {
       name: name,
       isSeller: false
     };
-    
+
     setCurrentUser(userObj);
     localStorage.setItem('currentUser', JSON.stringify(userObj));
 
@@ -680,7 +921,7 @@ function App() {
       triggerToast('Vui lòng nhập mô tả kinh nghiệm bán hàng!');
       return;
     }
-    
+
     if (currentUser) {
       const updatedUser = { ...currentUser, isSeller: true, role: 'seller' };
       setCurrentUser(updatedUser);
@@ -691,7 +932,7 @@ function App() {
     } else {
       triggerToast(`Đăng ký bán game ${sellerGame} thành công! Vui lòng đăng nhập để bắt đầu bán.`);
     }
-    
+
     setActiveModal(null);
     setSellerExperience('');
   };
@@ -737,12 +978,13 @@ function App() {
         sellerTab={sellerTab}
         setSellerTab={setSellerTab}
         triggerToast={triggerToast}
+        userWalletBalance={userWalletBalance}
       />
 
       {/* Main Content Router */}
       <main className={`main-content ${isTransitioning ? 'view-leaving' : ''}`}>
         {currentView === 'seller-landing' && (
-          <SellerLanding 
+          <SellerLanding
             currentUser={currentUser}
             setActiveModal={setActiveModal}
             pushRoute={pushRoute}
@@ -778,7 +1020,7 @@ function App() {
               openChatWithPartner={openChatWithPartner}
               handleTrendingCardClick={handleTrendingCardClick}
             />
-            <Promobanners triggerToast={triggerToast} />
+            <Promobanners triggerToast={triggerToast} pushRoute={pushRoute} setActiveModal={setActiveModal} />
           </>
         )}
 
@@ -813,6 +1055,20 @@ function App() {
           handleBuyNow={handleBuyNow}
           handleAddToCart={handleAddToCart}
           openChatWithPartner={openChatWithPartner}
+          handleSelectProduct={handleSelectProduct}
+          productReviews={productReviews}
+          handleAddReview={handleAddReview}
+          currentUser={currentUser}
+          setActiveModal={setActiveModal}
+          topupPhone={topupPhone}
+          setTopupPhone={setTopupPhone}
+          topupOperator={topupOperator}
+          setTopupOperator={setTopupOperator}
+          topupAmount={topupAmount}
+          setTopupAmount={setTopupAmount}
+          handleDepositToWallet={handleDepositToWallet}
+          userWalletBalance={userWalletBalance}
+          sellerListings={sellerListings}
         />
 
         <Checkout
@@ -830,6 +1086,7 @@ function App() {
           checkoutProcessing={checkoutProcessing}
           handleConfirmPayment={handleConfirmPayment}
           triggerToast={triggerToast}
+          userWalletBalance={userWalletBalance}
         />
 
         <Orders
@@ -842,10 +1099,10 @@ function App() {
       </main>
 
       {/* Global Footer Section */}
-      <Footer 
-        theme={theme} 
-        toggleTheme={toggleTheme} 
-        triggerToast={triggerToast} 
+      <Footer
+        theme={theme}
+        toggleTheme={toggleTheme}
+        triggerToast={triggerToast}
       />
 
       {/* Shopping Cart Sliding Drawer */}
@@ -893,9 +1150,17 @@ function App() {
                 <span>Tổng tiền hàng:</span>
                 <strong className="subtotal-val">{getCartTotal().toLocaleString('vi-VN')}₫</strong>
               </div>
-              <button 
-                className="btn btn-primary checkout-btn" 
-                onClick={() => { setIsCartOpen(false); pushRoute('checkout'); }}
+              <button
+                className="btn btn-primary checkout-btn"
+                onClick={() => {
+                  if (!currentUser) {
+                    triggerToast('Vui lòng đăng nhập để thanh toán!');
+                    setActiveModal('login');
+                  } else {
+                    setIsCartOpen(false);
+                    pushRoute('checkout');
+                  }
+                }}
               >
                 Tiến hành thanh toán
               </button>
@@ -942,6 +1207,111 @@ function App() {
         setChatInputText={setChatInputText}
         handleSendChatMessage={handleSendChatMessage}
       />
+
+      {/* Insufficient Funds Modal */}
+      {showInsufficientFundsModal && (
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
+            zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'g2gFadeIn 0.2s ease-out', fontFamily: "'Outfit','Inter',sans-serif"
+          }}
+          onClick={() => setShowInsufficientFundsModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'linear-gradient(145deg, #1f2125 0%, #17181c 100%)',
+              border: '1px solid #2d2f34', borderRadius: '20px',
+              padding: '40px 36px', maxWidth: '420px', width: '90%',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,51,51,0.15)',
+              animation: 'g2gSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1)', textAlign: 'center'
+            }}
+          >
+            {/* Icon */}
+            <div style={{
+              width: '72px', height: '72px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #ff3333 0%, #cc0000 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px', boxShadow: '0 8px 24px rgba(255,51,51,0.4)'
+            }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+
+            <h3 style={{ color: '#fff', fontSize: '22px', fontWeight: 700, margin: '0 0 8px' }}>
+              Số Dư Không Đủ
+            </h3>
+            <p style={{ color: '#9ea2a9', fontSize: '14px', lineHeight: 1.6, margin: '0 0 28px' }}>
+              Số dư trong ví tài khoản của bạn chưa đủ để hoàn tất đơn hàng này.
+            </p>
+
+            {/* Balance info */}
+            <div style={{
+              background: '#131416', border: '1px solid #2d2f34', borderRadius: '12px',
+              padding: '20px', marginBottom: '24px', textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ color: '#9ea2a9', fontSize: '13px' }}>💰 Số dư hiện tại:</span>
+                <span style={{ color: insufficientFundsData.current > 0 ? '#fbbf24' : '#9ea2a9', fontWeight: 700, fontSize: '15px' }}>
+                  {insufficientFundsData.current.toLocaleString('vi-VN')}₫
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ color: '#9ea2a9', fontSize: '13px' }}>🛒 Tổng đơn hàng:</span>
+                <span style={{ color: '#fff', fontWeight: 700, fontSize: '15px' }}>
+                  {insufficientFundsData.required.toLocaleString('vi-VN')}₫
+                </span>
+              </div>
+              <div style={{ borderTop: '1px solid #2d2f34', paddingTop: '12px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#9ea2a9', fontSize: '13px' }}>⚠️ Cần nạp thêm:</span>
+                <span style={{ color: '#ff3333', fontWeight: 800, fontSize: '16px' }}>
+                  {(insufficientFundsData.required - insufficientFundsData.current).toLocaleString('vi-VN')}₫
+                </span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setShowInsufficientFundsModal(false)}
+                style={{
+                  flex: 1, padding: '13px', background: 'transparent',
+                  border: '1px solid #2d2f34', borderRadius: '10px',
+                  color: '#fff', fontSize: '14px', fontWeight: 600,
+                  cursor: 'pointer', transition: 'background 0.2s'
+                }}
+                onMouseEnter={e => e.target.style.background = '#2b2d31'}
+                onMouseLeave={e => e.target.style.background = 'transparent'}
+              >
+                Để sau
+              </button>
+              <button
+                onClick={() => {
+                  setShowInsufficientFundsModal(false);
+                  pushRoute('category-catalog', { category: 'topup' });
+                }}
+                style={{
+                  flex: 1, padding: '13px',
+                  background: 'linear-gradient(135deg, #ff3333 0%, #cc0000 100%)',
+                  border: 'none', borderRadius: '10px',
+                  color: '#fff', fontSize: '14px', fontWeight: 700,
+                  cursor: 'pointer', boxShadow: '0 4px 16px rgba(255,51,51,0.4)',
+                  transition: 'transform 0.1s, box-shadow 0.2s'
+                }}
+                onMouseEnter={e => { e.target.style.transform = 'translateY(-1px)'; e.target.style.boxShadow = '0 6px 20px rgba(255,51,51,0.5)'; }}
+                onMouseLeave={e => { e.target.style.transform = 'translateY(0)'; e.target.style.boxShadow = '0 4px 16px rgba(255,51,51,0.4)'; }}
+              >
+                💳 Nạp Tiền Ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modals
         activeModal={activeModal}
