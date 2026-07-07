@@ -20,6 +20,7 @@ import Checkout from './components/Checkout';
 import Orders from './components/Orders';
 import ChatDrawer from './components/ChatDrawer';
 import Modals from './components/Modals';
+import SellerLanding from './components/SellerLanding';
 
 function App() {
   const [theme, setTheme] = useState('dark');
@@ -116,6 +117,13 @@ function App() {
   const [sellerGame, setSellerGame] = useState('Valorant');
   const [sellerExperience, setSellerExperience] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Seller States & Data (Starts empty for a newly registered seller)
+  const [sellerWalletBalance, setSellerWalletBalance] = useState(0); // Starts at 0 ₫
+  const [sellerWalletTransactions, setSellerWalletTransactions] = useState([]); // Empty transaction history
+  const [sellerListings, setSellerListings] = useState([]); // No listings initially
+  const [sellerOrders, setSellerOrders] = useState([]); // No orders initially
+  const [sellerTab, setSellerTab] = useState('overview'); // 'overview', 'add-listing', 'listings', 'orders', 'wallet'
 
   // Chat System State
   const [showChatDrawer, setShowChatDrawer] = useState(false);
@@ -252,6 +260,8 @@ function App() {
         path = '/checkout';
       } else if (view === 'orders') {
         path = '/orders';
+      } else if (view === 'seller-landing') {
+        path = '/seller';
       }
 
       if (replace) {
@@ -344,6 +354,10 @@ function App() {
       pushRoute('orders', {}, replace);
       return;
     }
+    if (path === '/seller') {
+      pushRoute('seller-landing', {}, replace);
+      return;
+    }
     pushRoute('home', {}, true);
   };
 
@@ -384,6 +398,8 @@ function App() {
           setCurrentView('checkout');
         } else if (path === '/orders') {
           setCurrentView('orders');
+        } else if (path === '/seller') {
+          setCurrentView('seller-landing');
         } else {
           setCurrentView('home');
         }
@@ -593,80 +609,69 @@ function App() {
     setShowChatDrawer(true);
   };
 
-  // Form Handlers integration with Backend APIs
-  const handleLoginSubmit = async (e) => {
+  // Form Handlers (Bypassed Backend for UI Testing)
+  const handleLoginSubmit = (e) => {
     e.preventDefault();
     if (!loginEmail || !loginPassword) {
       triggerToast('Vui lòng nhập tài khoản và mật khẩu!');
       return;
     }
-    try {
-      const response = await fetch('http://localhost:5000/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mail: loginEmail,
-          password: loginPassword,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        triggerToast('Đăng nhập thành công!');
-        const userObj = {
-          token: data.access_token,
-          id: data.user.id,
-          mail: data.user.mail,
-          name: data.user.name,
-        };
-        setCurrentUser(userObj);
-        localStorage.setItem('currentUser', JSON.stringify(userObj));
-        setActiveModal(null);
-        setLoginEmail('');
-        setLoginPassword('');
-      } else {
-        triggerToast(data.message || 'Sai tài khoản hoặc mật khẩu!');
-      }
-    } catch (error) {
-      console.error(error);
-      triggerToast('Không thể kết nối đến máy chủ backend!');
+
+    const normalizedMail = loginEmail.replace(/[\s-]/g, "").trim();
+    triggerToast('Đăng nhập thành công (Bypass Backend)!');
+    
+    // Create mock user object
+    const userObj = {
+      token: "mock-token-12345",
+      id: "1004154462",
+      mail: normalizedMail,
+      name: normalizedMail.includes('@') ? normalizedMail.split('@')[0] : normalizedMail,
+      isSeller: false
+    };
+
+    // Keep vu1234 username if they typed it
+    if (userObj.name === '0912345678') {
+      userObj.name = 'vu1234';
     }
+
+    setCurrentUser(userObj);
+    localStorage.setItem('currentUser', JSON.stringify(userObj));
+    setActiveModal(null);
+    setLoginEmail('');
+    setLoginPassword('');
   };
 
-  const handleSignupSubmit = async (e) => {
-    e.preventDefault();
-    if (!signupUsername || !signupEmail || !signupPassword) {
+  const handleSignupSubmit = (e, customData = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    
+    const name = customData ? customData.name : signupUsername;
+    const email = customData ? customData.mail : signupEmail;
+    const password = customData ? customData.password : signupPassword;
+
+    if (!name || !email || !password) {
       triggerToast('Vui lòng điền đầy đủ thông tin!');
       return;
     }
-    try {
-      const response = await fetch('http://localhost:5000/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: signupUsername,
-          mail: signupEmail,
-          password: signupPassword,
-        }),
-      });
-      const data = await response.json();
-      if (response.status === 201) {
-        triggerToast('Tạo tài khoản thành công!');
-        setLoginEmail(signupEmail);
-        setSignupUsername('');
-        setSignupEmail('');
-        setSignupPassword('');
-        setActiveModal('login');
-      } else {
-        triggerToast(data.message || 'Đăng ký thất bại!');
-      }
-    } catch (error) {
-      console.error(error);
-      triggerToast('Không thể kết nối đến máy chủ backend!');
-    }
+
+    const normalizedMail = email.replace(/[\s-]/g, "").trim();
+    triggerToast('Đăng ký tài khoản thành công!');
+    
+    // Automatically log in the user after signup
+    const userObj = {
+      token: "mock-token-12345",
+      id: "1004154462",
+      mail: normalizedMail,
+      name: name,
+      isSeller: false
+    };
+    
+    setCurrentUser(userObj);
+    localStorage.setItem('currentUser', JSON.stringify(userObj));
+
+    setSignupUsername('');
+    setSignupEmail('');
+    setSignupPassword('');
+    setActiveModal(null);
   };
 
   const handleSellerSubmit = (e) => {
@@ -675,7 +680,18 @@ function App() {
       triggerToast('Vui lòng nhập mô tả kinh nghiệm bán hàng!');
       return;
     }
-    triggerToast(`Gửi yêu cầu đăng ký bán game ${sellerGame} thành công! Hồ sơ đang được duyệt.`);
+    
+    if (currentUser) {
+      const updatedUser = { ...currentUser, isSeller: true, role: 'seller' };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      triggerToast(`Đăng ký bán game ${sellerGame} thành công! Tài khoản của bạn đã được nâng cấp lên Người Bán.`);
+      setSellerTab('overview');
+      pushRoute('seller-landing');
+    } else {
+      triggerToast(`Đăng ký bán game ${sellerGame} thành công! Vui lòng đăng nhập để bắt đầu bán.`);
+    }
+    
     setActiveModal(null);
     setSellerExperience('');
   };
@@ -718,10 +734,32 @@ function App() {
         selectedCategory={selectedCategory}
         currentView={currentView}
         navigateToCategory={navigateToCategory}
+        sellerTab={sellerTab}
+        setSellerTab={setSellerTab}
+        triggerToast={triggerToast}
       />
 
       {/* Main Content Router */}
       <main className={`main-content ${isTransitioning ? 'view-leaving' : ''}`}>
+        {currentView === 'seller-landing' && (
+          <SellerLanding 
+            currentUser={currentUser}
+            setActiveModal={setActiveModal}
+            pushRoute={pushRoute}
+            triggerToast={triggerToast}
+            sellerWalletBalance={sellerWalletBalance}
+            setSellerWalletBalance={setSellerWalletBalance}
+            sellerWalletTransactions={sellerWalletTransactions}
+            setSellerWalletTransactions={setSellerWalletTransactions}
+            sellerListings={sellerListings}
+            setSellerListings={setSellerListings}
+            sellerOrders={sellerOrders}
+            setSellerOrders={setSellerOrders}
+            sellerTab={sellerTab}
+            setSellerTab={setSellerTab}
+          />
+        )}
+
         {currentView === 'home' && (
           <>
             <HomeViews
