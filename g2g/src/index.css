@@ -1,39 +1,39 @@
 :root {
-  /* Dark theme colors (default) */
-  --bg-primary: #0a0a0d;
-  --bg-secondary: #121216;
-  --bg-card: #1b1b22;
-  --bg-card-hover: #24242e;
-  --border-color: #272730;
-  --text-primary: #ffffff;
-  --text-secondary: #a0a0ab;
-  --text-muted: #6b6b7a;
-  --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  /* Premium Cosmic Dark Theme (Default) */
+  --bg-primary: #090b11;
+  --bg-secondary: #101422;
+  --bg-card: #181d30;
+  --bg-card-hover: #212942;
+  --border-color: #242e4c;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --card-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   
   /* Constant colors */
-  --brand-red: #ff4e3a;
-  --brand-red-hover: #e03f2b;
-  --brand-red-light: rgba(255, 78, 58, 0.12);
+  --brand-red: #ff5746;
+  --brand-red-hover: #e04434;
+  --brand-red-light: rgba(255, 87, 70, 0.15);
   --success: #10b981;
   --success-light: rgba(16, 185, 129, 0.1);
   --gold: #fbbf24;
   
   --font-sans: 'Roboto Flex', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-heading: 'Outfit', 'Roboto Flex', sans-serif;
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Light theme overrides */
+/* Premium Slate Light Theme Overrides */
 body.light-theme {
-  --bg-primary: #f3f4f6;
+  --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
-  --bg-card: #f9fafb;
-  --bg-card-hover: #f3f4f6;
-  --border-color: #e5e7eb;
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
-  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --card-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
 }
 
 * {
