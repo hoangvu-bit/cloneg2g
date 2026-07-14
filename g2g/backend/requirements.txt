@@ -1,0 +1,7 @@
+Flask
+flasgger
+flask-cors
+pyodbc
+bcrypt
+PyJWT
+gunicorn
