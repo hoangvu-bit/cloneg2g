@@ -32,11 +32,11 @@ function Test() {
 
           const data = await response.json();
           setAddress(data.address);
-        } catch (err) {
+        } catch {
           setAddress("Lỗi kết nối đến server backend.");
         }
       },
-      (error) => {
+      () => {
         setAddress("Bạn đã từ chối quyền truy cập vị trí.");
       },
       options,

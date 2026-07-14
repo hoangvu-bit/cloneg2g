@@ -1,11 +1,40 @@
+﻿/* eslint-disable no-irregular-whitespace, no-unused-vars, react-hooks/exhaustive-deps */
 import { useState, useEffect } from "react";
 import "./App.css";
 import LoginModal from "./login.jsx";
 import RegisterSeller from "./RegisterSeller.jsx";
 import SellerProduct from "./SellerProduct.jsx";
+import { fetchCurrentUser } from "./auth.js";
 
 const USER_STORAGE_KEY = "shop-online-user";
-const TOKEN_STORAGE_KEY = "shop-online-token";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000";
+const VALID_USER_ROLES = new Set(["user", "seller", "admin"]);
+
+const getCookie = (name) => {
+  if (typeof document === "undefined") {
+    return "";
+  }
+  return (
+    document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(`${name}=`))
+      ?.split("=")[1] || ""
+  );
+};
+
+const createClientId = (prefix = "id") =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const createPaymentCode = (prefix, min, range) =>
+  `${prefix}${Math.floor(min + Math.random() * range)}`;
+
+const normalizeUserRole = (role) => {
+  const normalized = `${role || "user"}`.trim().toLowerCase();
+  if (["regular", "customer", "member"].includes(normalized)) {
+    return "user";
+  }
+  return VALID_USER_ROLES.has(normalized) ? normalized : "user";
+};
 
 const readStoredUser = () => {
   if (typeof window === "undefined" || !window.localStorage) {
@@ -16,7 +45,7 @@ const readStoredUser = () => {
     const storedUser = window.localStorage.getItem(USER_STORAGE_KEY);
     const parsedUser = storedUser ? JSON.parse(storedUser) : null;
     return parsedUser
-      ? { ...parsedUser, role: parsedUser.role || "user" }
+      ? { ...parsedUser, role: normalizeUserRole(parsedUser.role) }
       : null;
   } catch {
     return null;
@@ -32,7 +61,7 @@ const MOCK_GAMES = [
     textIcon: "R$",
     color: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
     description:
-      "Nạp Robux giá rẻ, tự động, hỗ trợ tài khoản Global bảo mật 100% với bảo hiểm GamerProtect.",
+      "Náº¡p Robux giÃ¡ ráº», tá»± Ä‘á»™ng, há»— trá»£ tÃ i khoáº£n Global báº£o máº­t 100% vá»›i báº£o hiá»ƒm GamerProtect.",
     items: [
       {
         id: "roblox-80",
@@ -78,17 +107,17 @@ const MOCK_GAMES = [
   },
   {
     id: "garena-shells",
-    name: "Garena Shells (Sò Garena)",
+    name: "Garena Shells (SÃ² Garena)",
     category: "cards",
     badge: "Auto Delivery",
     textIcon: "Gar",
     color: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
     description:
-      "Sò Garena Việt Nam dùng để nạp các game Liên Quân Mobile, Free Fire, FC Online giá rẻ nhất.",
+      "SÃ² Garena Viá»‡t Nam dÃ¹ng Ä‘á»ƒ náº¡p cÃ¡c game LiÃªn QuÃ¢n Mobile, Free Fire, FC Online giÃ¡ ráº» nháº¥t.",
     items: [
       {
         id: "gar-20",
-        name: "20 Sò Garena",
+        name: "20 SÃ² Garena",
         price: 9500,
         badge: "Auto Send",
         region: "Vietnam",
@@ -96,7 +125,7 @@ const MOCK_GAMES = [
       },
       {
         id: "gar-50",
-        name: "50 Sò Garena",
+        name: "50 SÃ² Garena",
         price: 24000,
         badge: "Auto Send",
         region: "Vietnam",
@@ -104,7 +133,7 @@ const MOCK_GAMES = [
       },
       {
         id: "gar-100",
-        name: "100 Sò Garena",
+        name: "100 SÃ² Garena",
         price: 48000,
         badge: "Auto Send",
         region: "Vietnam",
@@ -112,7 +141,7 @@ const MOCK_GAMES = [
       },
       {
         id: "gar-200",
-        name: "200 Sò Garena",
+        name: "200 SÃ² Garena",
         price: 95000,
         badge: "Auto Send",
         region: "Vietnam",
@@ -120,7 +149,7 @@ const MOCK_GAMES = [
       },
       {
         id: "gar-500",
-        name: "500 Sò Garena",
+        name: "500 SÃ² Garena",
         price: 238000,
         badge: "Auto Send",
         region: "Vietnam",
@@ -136,11 +165,11 @@ const MOCK_GAMES = [
     textIcon: "Zing",
     color: "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)",
     description:
-      "Thẻ Zing nạp game VNG: Võ Lâm Truyền Kỳ, Kiếm Thế, PUBG Mobile, Boom M giá rẻ chiết khấu cao.",
+      "Tháº» Zing náº¡p game VNG: VÃµ LÃ¢m Truyá»n Ká»³, Kiáº¿m Tháº¿, PUBG Mobile, Boom M giÃ¡ ráº» chiáº¿t kháº¥u cao.",
     items: [
       {
         id: "zing-20",
-        name: "Thẻ Zing 20K",
+        name: "Tháº» Zing 20K",
         price: 19000,
         badge: "Discount 5%",
         region: "Vietnam",
@@ -148,7 +177,7 @@ const MOCK_GAMES = [
       },
       {
         id: "zing-50",
-        name: "Thẻ Zing 50K",
+        name: "Tháº» Zing 50K",
         price: 47500,
         badge: "Discount 5%",
         region: "Vietnam",
@@ -156,7 +185,7 @@ const MOCK_GAMES = [
       },
       {
         id: "zing-100",
-        name: "Thẻ Zing 100K",
+        name: "Tháº» Zing 100K",
         price: 95000,
         badge: "Discount 5%",
         region: "Vietnam",
@@ -164,7 +193,7 @@ const MOCK_GAMES = [
       },
       {
         id: "zing-200",
-        name: "Thẻ Zing 200K",
+        name: "Tháº» Zing 200K",
         price: 190000,
         badge: "Discount 5%",
         region: "Vietnam",
@@ -172,7 +201,7 @@ const MOCK_GAMES = [
       },
       {
         id: "zing-500",
-        name: "Thẻ Zing 500K",
+        name: "Tháº» Zing 500K",
         price: 475000,
         badge: "Discount 5%",
         region: "Vietnam",
@@ -188,7 +217,7 @@ const MOCK_GAMES = [
     textIcon: "VP",
     color: "linear-gradient(135deg, #7f1d1d 0%, #111827 100%)",
     description:
-      "Nạp VP mua skin súng Valorant giá rẻ. Nhận mã code hoặc nạp trực tiếp qua tài khoản RIOT.",
+      "Náº¡p VP mua skin sÃºng Valorant giÃ¡ ráº». Nháº­n mÃ£ code hoáº·c náº¡p trá»±c tiáº¿p qua tÃ i khoáº£n RIOT.",
     items: [
       {
         id: "vp-475",
@@ -240,7 +269,7 @@ const MOCK_GAMES = [
     textIcon: "Steam",
     color: "linear-gradient(135deg, #475569 0%, #1e293b 100%)",
     description:
-      "Mã code nạp Steam Wallet mua game, vật phẩm Market bảo mật tốt nhất.",
+      "MÃ£ code náº¡p Steam Wallet mua game, váº­t pháº©m Market báº£o máº­t tá»‘t nháº¥t.",
     items: [
       {
         id: "steam-5",
@@ -278,17 +307,17 @@ const MOCK_GAMES = [
   },
   {
     id: "lien-quan-mobile",
-    name: "Liên Quân Mobile - Tài Khoản VIP",
+    name: "LiÃªn QuÃ¢n Mobile - TÃ i Khoáº£n VIP",
     category: "accounts",
-    badge: "Acc Trắng TT",
+    badge: "Acc Tráº¯ng TT",
     textIcon: "LQ",
     color: "linear-gradient(135deg, #1e1b4b 0%, #311042 100%)",
     description:
-      "Tài khoản Liên Quân Mobile giá tốt, rank cao thủ, nhiều skin đẹp, đầy đủ ngọc.",
+      "TÃ i khoáº£n LiÃªn QuÃ¢n Mobile giÃ¡ tá»‘t, rank cao thá»§, nhiá»u skin Ä‘áº¹p, Ä‘áº§y Ä‘á»§ ngá»c.",
     items: [
       {
         id: "lq-white",
-        name: "Tài Khoản Trắng Thông Tin",
+        name: "TÃ i Khoáº£n Tráº¯ng ThÃ´ng Tin",
         price: 50000,
         badge: "Clean Acc",
         region: "Vietnam",
@@ -296,15 +325,15 @@ const MOCK_GAMES = [
       },
       {
         id: "lq-caothu",
-        name: "Tài Khoản Cao Thủ 50 Skin",
+        name: "TÃ i Khoáº£n Cao Thá»§ 50 Skin",
         price: 150000,
-        badge: "Full Ngọc",
+        badge: "Full Ngá»c",
         region: "Vietnam",
         offers: 85,
       },
       {
         id: "lq-chientuong",
-        name: "Tài Khoản Chiến Tướng Full Tướng",
+        name: "TÃ i Khoáº£n Chiáº¿n TÆ°á»›ng Full TÆ°á»›ng",
         price: 450000,
         badge: "VIP Skin",
         region: "Vietnam",
@@ -312,7 +341,7 @@ const MOCK_GAMES = [
       },
       {
         id: "lq-thachdau",
-        name: "Tài Khoản VIP Thách Đấu Skin SSS",
+        name: "TÃ i Khoáº£n VIP ThÃ¡ch Äáº¥u Skin SSS",
         price: 2500000,
         badge: "Super Rich",
         region: "Vietnam",
@@ -322,17 +351,17 @@ const MOCK_GAMES = [
   },
   {
     id: "lol-boosting",
-    name: "League of Legends - Cày Thuê",
+    name: "League of Legends - CÃ y ThuÃª",
     category: "boosting",
     badge: "Pro Boosters",
     textIcon: "LoL",
     color: "linear-gradient(135deg, #312e81 0%, #1e1b4b 100%)",
     description:
-      "Cày thuê LMHT uy tín bởi tuyển thủ thách đấu. Đảm bảo bảo mật tài khoản 100%.",
+      "CÃ y thuÃª LMHT uy tÃ­n bá»Ÿi tuyá»ƒn thá»§ thÃ¡ch Ä‘áº¥u. Äáº£m báº£o báº£o máº­t tÃ i khoáº£n 100%.",
     items: [
       {
         id: "lol-iron-gold",
-        name: "Cày Thuê Sắt lên Vàng",
+        name: "CÃ y ThuÃª Sáº¯t lÃªn VÃ ng",
         price: 100000,
         badge: "Pro Boost",
         region: "Vietnam",
@@ -340,7 +369,7 @@ const MOCK_GAMES = [
       },
       {
         id: "lol-gold-diamond",
-        name: "Cày Thuê Vàng lên Kim Cương",
+        name: "CÃ y ThuÃª VÃ ng lÃªn Kim CÆ°Æ¡ng",
         price: 350000,
         badge: "Pro Boost",
         region: "Vietnam",
@@ -348,7 +377,7 @@ const MOCK_GAMES = [
       },
       {
         id: "lol-master-challenger",
-        name: "Cày Thuê Cao Thủ lên Thách Đấu",
+        name: "CÃ y ThuÃª Cao Thá»§ lÃªn ThÃ¡ch Äáº¥u",
         price: 1200000,
         badge: "Top Player",
         region: "Vietnam",
@@ -358,17 +387,17 @@ const MOCK_GAMES = [
   },
   {
     id: "genshin-impact",
-    name: "Genshin Impact - Acc Đẹp",
+    name: "Genshin Impact - Acc Äáº¹p",
     category: "accounts",
     badge: "Safe Guarantee",
     textIcon: "GI",
     color: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
     description:
-      "Tài khoản Genshin Impact AR cao, sở hữu các nhân vật 5 sao giới hạn và vũ khí trấn cực xịn.",
+      "TÃ i khoáº£n Genshin Impact AR cao, sá»Ÿ há»¯u cÃ¡c nhÃ¢n váº­t 5 sao giá»›i háº¡n vÃ  vÅ© khÃ­ tráº¥n cá»±c xá»‹n.",
     items: [
       {
         id: "gi-ar40",
-        name: "Acc AR 40 Có 2 Tướng 5 Sao",
+        name: "Acc AR 40 CÃ³ 2 TÆ°á»›ng 5 Sao",
         price: 80000,
         badge: "Starter Acc",
         region: "Asia",
@@ -376,7 +405,7 @@ const MOCK_GAMES = [
       },
       {
         id: "gi-ar50",
-        name: "Acc AR 50 Có Raiden Shogun + Trấn",
+        name: "Acc AR 50 CÃ³ Raiden Shogun + Tráº¥n",
         price: 250000,
         badge: "Hot Pick",
         region: "Asia",
@@ -384,7 +413,7 @@ const MOCK_GAMES = [
       },
       {
         id: "gi-ar55",
-        name: "Acc AR 55 Giá Rẻ Hơn 10 Tướng 5 Sao",
+        name: "Acc AR 55 GiÃ¡ Ráº» HÆ¡n 10 TÆ°á»›ng 5 Sao",
         price: 650000,
         badge: "Secure 100%",
         region: "Asia",
@@ -392,7 +421,7 @@ const MOCK_GAMES = [
       },
       {
         id: "gi-whale",
-        name: "Acc Whale AR 60 Cung Mệnh C6R5",
+        name: "Acc Whale AR 60 Cung Má»‡nh C6R5",
         price: 8500000,
         badge: "Whale Acc",
         region: "Asia",
@@ -402,13 +431,13 @@ const MOCK_GAMES = [
   },
   {
     id: "counter-strike-2",
-    name: "Counter-Strike 2 - Skins & Hòm",
+    name: "Counter-Strike 2 - Skins & HÃ²m",
     category: "items",
     badge: "Hot Skins",
     textIcon: "CS2",
     color: "linear-gradient(135deg, #ea580c 0%, #7c2d12 100%)",
     description:
-      "Skins súng, dao, găng tay CS2 cực hot. Giao dịch trực tiếp qua Steam Trade Offer an toàn 100%.",
+      "Skins sÃºng, dao, gÄƒng tay CS2 cá»±c hot. Giao dá»‹ch trá»±c tiáº¿p qua Steam Trade Offer an toÃ n 100%.",
     items: [
       {
         id: "cs-knife",
@@ -436,7 +465,7 @@ const MOCK_GAMES = [
       },
       {
         id: "cs-case",
-        name: "Kilowatt Case x50 Hòm CS2",
+        name: "Kilowatt Case x50 HÃ²m CS2",
         price: 230000,
         badge: "Instant Send",
         region: "Global",
@@ -452,7 +481,7 @@ const MOCK_GAMES = [
     textIcon: "Skin",
     color: "linear-gradient(135deg, #a21caf 0%, #4c0519 100%)",
     description:
-      "Nơi mua bán skin súng, dao CS2 trực tiếp giá tốt nhất, chiết khấu lên đến 30% so với Steam.",
+      "NÆ¡i mua bÃ¡n skin sÃºng, dao CS2 trá»±c tiáº¿p giÃ¡ tá»‘t nháº¥t, chiáº¿t kháº¥u lÃªn Ä‘áº¿n 30% so vá»›i Steam.",
     items: [
       {
         id: "skin-m4a1",
@@ -482,13 +511,13 @@ const MOCK_GAMES = [
   },
   {
     id: "software-keys",
-    name: "Bản Quyền Phần Mềm & Key",
+    name: "Báº£n Quyá»n Pháº§n Má»m & Key",
     category: "software",
     badge: "100% Genuine",
     textIcon: "Key",
     color: "linear-gradient(135deg, #1e3a8a 0%, #172554 100%)",
     description:
-      "Key bản quyền chính hãng Windows 11 Pro, Office 365, diệt virus Kaspersky kích hoạt online.",
+      "Key báº£n quyá»n chÃ­nh hÃ£ng Windows 11 Pro, Office 365, diá»‡t virus Kaspersky kÃ­ch hoáº¡t online.",
     items: [
       {
         id: "soft-win11",
@@ -508,7 +537,7 @@ const MOCK_GAMES = [
       },
       {
         id: "soft-kaspersky",
-        name: "Kaspersky Premium 1 Năm 1 Thiết Bị",
+        name: "Kaspersky Premium 1 NÄƒm 1 Thiáº¿t Bá»‹",
         price: 150000,
         badge: "Instant Code",
         region: "Vietnam",
@@ -518,17 +547,17 @@ const MOCK_GAMES = [
   },
   {
     id: "payment-cards",
-    name: "Thẻ Trả Trước Visa & Mastercard",
+    name: "Tháº» Tráº£ TrÆ°á»›c Visa & Mastercard",
     category: "payment-cards",
     badge: "Secure Pay",
     textIcon: "Card",
     color: "linear-gradient(135deg, #0f766e 0%, #115e59 100%)",
     description:
-      "Thẻ ảo Visa, Mastercard trả trước dùng để thanh toán quốc tế, mua quảng cáo, đăng ký Netflix.",
+      "Tháº» áº£o Visa, Mastercard tráº£ trÆ°á»›c dÃ¹ng Ä‘á»ƒ thanh toÃ¡n quá»‘c táº¿, mua quáº£ng cÃ¡o, Ä‘Äƒng kÃ½ Netflix.",
     items: [
       {
         id: "pay-visa5",
-        name: "Thẻ Ảo Visa Prepaid 5$",
+        name: "Tháº» áº¢o Visa Prepaid 5$",
         price: 145000,
         badge: "Instant Card",
         region: "Global",
@@ -536,7 +565,7 @@ const MOCK_GAMES = [
       },
       {
         id: "pay-visa10",
-        name: "Thẻ Ảo Visa Prepaid 10$",
+        name: "Tháº» áº¢o Visa Prepaid 10$",
         price: 285000,
         badge: "Instant Card",
         region: "Global",
@@ -544,57 +573,13 @@ const MOCK_GAMES = [
       },
       {
         id: "pay-master20",
-        name: "Thẻ Ảo Mastercard Prepaid 20$",
+        name: "Tháº» áº¢o Mastercard Prepaid 20$",
         price: 560000,
         badge: "Instant Card",
         region: "Global",
         offers: 6,
       },
     ],
-  },
-];
-
-// Mock GamePal Partners List
-const GAMEPAL_PARTNERS = [
-  {
-    id: 1,
-    name: "SkyBlade_Radiant",
-    rating: "4.9",
-    reviews: "1.2k+",
-    game: "Valorant",
-    earnings: "3.500.000₫ - 8.000.000₫ / tuần",
-    avatarText: "SB",
-    online: true,
-  },
-  {
-    id: 2,
-    name: "GenshinProHelper",
-    rating: "5.0",
-    reviews: "342",
-    game: "Genshin Impact",
-    earnings: "2.000.000₫ - 4.500.000₫ / tuần",
-    avatarText: "GP",
-    online: true,
-  },
-  {
-    id: 3,
-    name: "Katarina_Master",
-    rating: "4.8",
-    reviews: "820",
-    game: "League of Legends",
-    earnings: "4.000.000₫ - 9.000.000₫ / tuần",
-    avatarText: "KM",
-    online: true,
-  },
-  {
-    id: 4,
-    name: "RobloxRichBoy",
-    rating: "4.9",
-    reviews: "155",
-    game: "Roblox Trading",
-    earnings: "1.500.000₫ - 3.200.000₫ / tuần",
-    avatarText: "RR",
-    online: true,
   },
 ];
 
@@ -840,7 +825,7 @@ const TRENDING_BLOCKS = {
   ],
 };
 
-// Mock Sellers Pool
+// Mock GamePal Partners List
 const MOCK_SELLERS = [
   {
     id: "sel-1",
@@ -848,7 +833,7 @@ const MOCK_SELLERS = [
     rating: 4.9,
     reviews: 12430,
     successRate: "99.8%",
-    speed: "3 phút",
+    speed: "3 phÃºt",
     stock: 80,
     multiplier: 0.98,
   },
@@ -858,7 +843,7 @@ const MOCK_SELLERS = [
     rating: 4.8,
     reviews: 8520,
     successRate: "98.5%",
-    speed: "5 phút",
+    speed: "5 phÃºt",
     stock: 120,
     multiplier: 1.0,
   },
@@ -868,7 +853,7 @@ const MOCK_SELLERS = [
     rating: 5.0,
     reviews: 3410,
     successRate: "100%",
-    speed: "2 phút",
+    speed: "2 phÃºt",
     stock: 50,
     multiplier: 1.02,
   },
@@ -878,7 +863,7 @@ const MOCK_SELLERS = [
     rating: 4.6,
     reviews: 20150,
     successRate: "96.2%",
-    speed: "12 phút",
+    speed: "12 phÃºt",
     stock: 350,
     multiplier: 0.95,
   },
@@ -888,7 +873,7 @@ const MOCK_SELLERS = [
     rating: 4.7,
     reviews: 530,
     successRate: "97.1%",
-    speed: "8 phút",
+    speed: "8 phÃºt",
     stock: 30,
     multiplier: 1.05,
   },
@@ -900,7 +885,7 @@ const FLASH_SALE_ITEMS = [
     id: "fs-1",
     gameId: "garena-shells",
     itemId: "gar-200",
-    name: "Garena Shells 200 Sò",
+    name: "Garena Shells 200 SÃ²",
     originalPrice: 95000,
     salePrice: 75000,
     stockLeft: 4,
@@ -944,7 +929,7 @@ const MOCK_REVIEWS = [
     user: "HoangLong_99",
     rating: 5,
     comment:
-      "Giao hàng siêu nhanh, chỉ mất chưa đầy 1 phút đã nhận được mã nạp. Độ tin cậy tuyệt đối!",
+      "Giao hÃ ng siÃªu nhanh, chá»‰ máº¥t chÆ°a Ä‘áº§y 1 phÃºt Ä‘Ã£ nháº­n Ä‘Æ°á»£c mÃ£ náº¡p. Äá»™ tin cáº­y tuyá»‡t Ä‘á»‘i!",
     date: "01/07/2026",
   },
   {
@@ -952,7 +937,7 @@ const MOCK_REVIEWS = [
     user: "AnhKhoa_Gamer",
     rating: 5,
     comment:
-      "Giao dịch qua bảo hiểm GamerProtect an tâm cực kỳ, giá lại rẻ hơn các shop khác.",
+      "Giao dá»‹ch qua báº£o hiá»ƒm GamerProtect an tÃ¢m cá»±c ká»³, giÃ¡ láº¡i ráº» hÆ¡n cÃ¡c shop khÃ¡c.",
     date: "30/06/2026",
   },
   {
@@ -960,7 +945,7 @@ const MOCK_REVIEWS = [
     user: "ThanhHang_lq",
     rating: 5,
     comment:
-      "Đã mua acc Liên Quân và nạp nhiều lần ở đây, chăm sóc khách hàng hỗ trợ rất nhiệt tình.",
+      "ÄÃ£ mua acc LiÃªn QuÃ¢n vÃ  náº¡p nhiá»u láº§n á»Ÿ Ä‘Ã¢y, chÄƒm sÃ³c khÃ¡ch hÃ ng há»— trá»£ ráº¥t nhiá»‡t tÃ¬nh.",
     date: "28/06/2026",
   },
   {
@@ -968,7 +953,7 @@ const MOCK_REVIEWS = [
     user: "ProGamer_VN",
     rating: 4,
     comment:
-      "Sản phẩm sạch, nạp tự động thuận tiện. Hơi lâu một tí vào giờ cao điểm nhưng chấp nhận được.",
+      "Sáº£n pháº©m sáº¡ch, náº¡p tá»± Ä‘á»™ng thuáº­n tiá»‡n. HÆ¡i lÃ¢u má»™t tÃ­ vÃ o giá» cao Ä‘iá»ƒm nhÆ°ng cháº¥p nháº­n Ä‘Æ°á»£c.",
     date: "25/06/2026",
   },
 ];
@@ -976,6 +961,11 @@ const MOCK_REVIEWS = [
 function App() {
   const [theme, setTheme] = useState("dark");
   const [currentView, setCurrentView] = useState("home"); // 'home', 'catalog', 'category-catalog', 'product-detail', 'checkout', 'orders', 'register-seller', 'seller-product'
+  const [paymentCodes] = useState(() => ({
+    momo: createPaymentCode("G2G-", 10000, 90000),
+    zalopay: createPaymentCode("G2G-ZALO-", 10000, 90000),
+    banking: createPaymentCode("G2G BANKING ", 100000, 900000),
+  }));
 
   // Navigation Selection States
   const [selectedGame, setSelectedGame] = useState(null);
@@ -995,7 +985,6 @@ function App() {
 
   // Filtering & Search
   const [activeCategory, setActiveCategory] = useState("all");
-  const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [brandSearchQuery, setBrandSearchQuery] = useState("");
@@ -1022,18 +1011,18 @@ function App() {
       qty: 1,
       sellerName: "GameKongs",
       status: "completed",
-      paymentMethod: "Ví MoMo",
+      paymentMethod: "VÃ­ MoMo",
     },
     {
       id: "G2G-194058",
       date: "28/06/2026",
-      gameName: "Liên Quân Mobile - Tài Khoản VIP",
-      itemName: "Tài Khoản Cao Thủ 50 Skin",
+      gameName: "LiÃªn QuÃ¢n Mobile - TÃ i Khoáº£n VIP",
+      itemName: "TÃ i Khoáº£n Cao Thá»§ 50 Skin",
       price: 150000,
       qty: 1,
       sellerName: "FastDeliver_Store",
       status: "completed",
-      paymentMethod: "Chuyển khoản NH",
+      paymentMethod: "Chuyá»ƒn khoáº£n NH",
     },
   ]);
 
@@ -1054,7 +1043,7 @@ function App() {
   // Modals & General UX
   const [activeModal, setActiveModal] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
-  const [currentUser, setCurrentUser] = useState(() => readStoredUser());
+  const [currentUser, setCurrentUser] = useState(null);
   const [sellerGame, setSellerGame] = useState("Valorant");
   const [sellerExperience, setSellerExperience] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
@@ -1073,7 +1062,7 @@ function App() {
       messages: [
         {
           sender: "partner",
-          text: "Xin chào! Mình có sẵn acc Valorant VIP. Bạn cần rank gì ạ?",
+          text: "Xin chÃ o! MÃ¬nh cÃ³ sáºµn acc Valorant VIP. Báº¡n cáº§n rank gÃ¬ áº¡?",
         },
       ],
     },
@@ -1086,7 +1075,7 @@ function App() {
       messages: [
         {
           sender: "partner",
-          text: "Chào bạn! Mình có thể cày thuê up rank và làm nhiệm vụ Genshin nhé.",
+          text: "ChÃ o báº¡n! MÃ¬nh cÃ³ thá»ƒ cÃ y thuÃª up rank vÃ  lÃ m nhiá»‡m vá»¥ Genshin nhÃ©.",
         },
       ],
     },
@@ -1099,7 +1088,7 @@ function App() {
       messages: [
         {
           sender: "partner",
-          text: "Chào bạn, cám ơn đã liên hệ! Tất cả code Robux và Sò Garena bên mình đều là tự động gửi, nhận ngay trong 3 phút.",
+          text: "ChÃ o báº¡n, cÃ¡m Æ¡n Ä‘Ã£ liÃªn há»‡! Táº¥t cáº£ code Robux vÃ  SÃ² Garena bÃªn mÃ¬nh Ä‘á»u lÃ  tá»± Ä‘á»™ng gá»­i, nháº­n ngay trong 3 phÃºt.",
         },
       ],
     },
@@ -1128,18 +1117,31 @@ function App() {
   const formattedClock = formatTime(timeLeft);
 
   useEffect(() => {
-    const handleStorageChange = (event) => {
-      if (event.key === USER_STORAGE_KEY) {
-        setCurrentUser(event.newValue ? JSON.parse(event.newValue) : null);
-      }
-    };
+    let cancelled = false;
 
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    fetchCurrentUser()
+      .then((user) => {
+        if (cancelled) {
+          return;
+        }
+        setCurrentUser(user);
+      })
+      .catch(() => {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(USER_STORAGE_KEY);
+        }
+        if (!cancelled) {
+          setCurrentUser(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLoginSuccess = (user) => {
-    setCurrentUser({ ...user, role: user.role || "user" });
+    setCurrentUser({ ...user, role: normalizeUserRole(user.role) });
     setShowLogin(false);
   };
 
@@ -1148,27 +1150,34 @@ function App() {
       return;
     }
 
-    setCurrentUser(updatedUser);
+    setCurrentUser({ ...updatedUser, role: normalizeUserRole(updatedUser.role) });
     pushRoute("seller-product");
-    triggerToast("Đăng ký trở thành người bán thành công.");
+    triggerToast("ÄÄƒng kÃ½ trá»Ÿ thÃ nh ngÆ°á»i bÃ¡n thÃ nh cÃ´ng.");
   };
 
-  const handleLogout = () => {
-    const confirmed = window.confirm("Bạn có muốn đăng xuất không?");
+  const handleLogout = async () => {
+    const confirmed = window.confirm("Báº¡n cÃ³ muá»‘n Ä‘Äƒng xuáº¥t khÃ´ng?");
 
     if (!confirmed) {
       return;
     }
 
+    await fetch(`${API_BASE_URL}/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "X-CSRF-Token": decodeURIComponent(getCookie("csrf_token")),
+      },
+    }).catch(() => null);
+
     window.localStorage.removeItem(USER_STORAGE_KEY);
-    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     setCurrentUser(null);
-    triggerToast("Bạn đã đăng xuất thành công.");
+    triggerToast("Báº¡n Ä‘Ã£ Ä‘Äƒng xuáº¥t thÃ nh cÃ´ng.");
   };
 
   const handleSellerEntryClick = () => {
     if (!currentUser) {
-      triggerToast("Vui lòng đăng nhập trước khi đăng ký trở thành người bán.");
+      triggerToast("Vui lÃ²ng Ä‘Äƒng nháº­p trÆ°á»›c khi Ä‘Äƒng kÃ½ trá»Ÿ thÃ nh ngÆ°á»i bÃ¡n.");
       setShowLogin(true);
       return;
     }
@@ -1183,8 +1192,8 @@ function App() {
 
   const sellerEntryLabel =
     currentUser?.role === "seller"
-      ? "Đăng bán sản phẩm"
-      : "Trở thành người bán";
+      ? "ÄÄƒng bÃ¡n sáº£n pháº©m"
+      : "Trá»Ÿ thÃ nh ngÆ°á»i bÃ¡n";
 
   // Sync theme changes with body element
   useEffect(() => {
@@ -1205,7 +1214,7 @@ function App() {
           prev.map((o) => {
             if (o.status === "pending") {
               triggerToast(
-                `Đơn hàng ${o.id} đang được người bán chuẩn bị bàn giao!`,
+                `ÄÆ¡n hÃ ng ${o.id} Ä‘ang Ä‘Æ°á»£c ngÆ°á»i bÃ¡n chuáº©n bá»‹ bÃ n giao!`,
               );
               return { ...o, status: "delivering" };
             }
@@ -1225,7 +1234,7 @@ function App() {
           prev.map((o) => {
             if (o.status === "delivering") {
               triggerToast(
-                `Đơn hàng ${o.id} đã hoàn tất và bàn giao tự động thành công!`,
+                `ÄÆ¡n hÃ ng ${o.id} Ä‘Ã£ hoÃ n táº¥t vÃ  bÃ n giao tá»± Ä‘á»™ng thÃ nh cÃ´ng!`,
               );
               return { ...o, status: "completed" };
             }
@@ -1463,27 +1472,27 @@ function App() {
         category: activeCategory === "all" ? "coins" : activeCategory,
         color: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
         textIcon: card.name.substring(0, 3).toUpperCase(),
-        description: `Thị trường giao dịch ${card.name} an toàn, giao dịch nhanh chóng với nhiều ưu đãi hấp dẫn.`,
+        description: `Thá»‹ trÆ°á»ng giao dá»‹ch ${card.name} an toÃ n, giao dá»‹ch nhanh chÃ³ng vá»›i nhiá»u Æ°u Ä‘Ã£i háº¥p dáº«n.`,
         items: [
           {
             id: `${card.gameId}-item-1`,
-            name: `Gói nạp Gold ${card.name} 10M`,
+            name: `GÃ³i náº¡p Gold ${card.name} 10M`,
             price: 150000,
-            badge: "Giao hàng nhanh",
+            badge: "Giao hÃ ng nhanh",
             region: "Global",
             offers: 15,
           },
           {
             id: `${card.gameId}-item-2`,
-            name: `Gói nạp Gold ${card.name} 50M`,
+            name: `GÃ³i náº¡p Gold ${card.name} 50M`,
             price: 680000,
-            badge: "Được bảo hiểm",
+            badge: "ÄÆ°á»£c báº£o hiá»ƒm",
             region: "Global",
             offers: 28,
           },
           {
             id: `${card.gameId}-item-3`,
-            name: `Acc ${card.name} Cấp Cao VIP`,
+            name: `Acc ${card.name} Cáº¥p Cao VIP`,
             price: 1200000,
             badge: "Hot Deal",
             region: "Global",
@@ -1526,7 +1535,7 @@ function App() {
       setCart(updatedCart);
     } else {
       const newCartItem = {
-        cartId: Date.now() + Math.random().toString(36).substr(2, 5),
+        cartId: createClientId("cart"),
         itemId: item.id,
         itemName: item.name,
         gameId: game.id,
@@ -1541,7 +1550,7 @@ function App() {
       setCart((prev) => [...prev, newCartItem]);
     }
     triggerToast(
-      `Đã thêm ${quantity} x "${item.name}" từ ${seller.name} vào giỏ hàng!`,
+      `ÄÃ£ thÃªm ${quantity} x "${item.name}" tá»« ${seller.name} vÃ o giá» hÃ ng!`,
     );
     setIsCartOpen(true);
   };
@@ -1561,7 +1570,7 @@ function App() {
 
   const removeCartItem = (cartId) => {
     setCart((prev) => prev.filter((item) => item.cartId !== cartId));
-    triggerToast("Đã xóa sản phẩm khỏi giỏ hàng.");
+    triggerToast("ÄÃ£ xÃ³a sáº£n pháº©m khá»i giá» hÃ ng.");
   };
 
   const getCartTotal = () => {
@@ -1572,7 +1581,7 @@ function App() {
   const handleBuyNow = (item, game, seller, quantity) => {
     const unitPrice = Math.floor(item.price * seller.multiplier);
     const newCartItem = {
-      cartId: Date.now() + Math.random().toString(36).substr(2, 5),
+      cartId: createClientId("cart"),
       itemId: item.id,
       itemName: item.name,
       gameId: game.id,
@@ -1599,7 +1608,7 @@ function App() {
       setCheckoutSuccess(true);
 
       const newOrders = cart.map((item) => ({
-        id: `G2G-${Math.floor(100000 + Math.random() * 900000)}`,
+        id: createPaymentCode("G2G-", 100000, 900000),
         date: new Date().toLocaleDateString("vi-VN"),
         gameName: item.gameName,
         itemName: item.itemName,
@@ -1609,12 +1618,12 @@ function App() {
         status: "pending",
         paymentMethod:
           activePaymentTab === "momo"
-            ? "Ví MoMo"
+            ? "VÃ­ MoMo"
             : activePaymentTab === "zalopay"
-              ? "Ví ZaloPay"
+              ? "VÃ­ ZaloPay"
               : activePaymentTab === "banking"
-                ? "Chuyển khoản NH"
-                : "Thẻ Quốc Thế",
+                ? "Chuyá»ƒn khoáº£n NH"
+                : "Tháº» Quá»‘c Tháº¿",
       }));
 
       setOrders((prev) => [...newOrders, ...prev]);
@@ -1624,7 +1633,7 @@ function App() {
         setCart([]);
         pushRoute("orders");
         triggerToast(
-          "Giao dịch hoàn tất! Đơn hàng đang được chuẩn bị bàn giao.",
+          "Giao dá»‹ch hoÃ n táº¥t! ÄÆ¡n hÃ ng Ä‘ang Ä‘Æ°á»£c chuáº©n bá»‹ bÃ n giao.",
         );
       }, 2000);
     }, 2000);
@@ -1651,27 +1660,27 @@ function App() {
     setChatInputText("");
 
     setTimeout(() => {
-      let replyText = `Chào bạn! Mình là hỗ trợ viên của ${targetChat.partnerName}. Có vấn đề gì về đơn hàng cần mình hỗ trợ không?`;
+      let replyText = `ChÃ o báº¡n! MÃ¬nh lÃ  há»— trá»£ viÃªn cá»§a ${targetChat.partnerName}. CÃ³ váº¥n Ä‘á» gÃ¬ vá» Ä‘Æ¡n hÃ ng cáº§n mÃ¬nh há»— trá»£ khÃ´ng?`;
       if (
-        userText.includes("đơn") ||
-        userText.includes("nạp") ||
+        userText.includes("Ä‘Æ¡n") ||
+        userText.includes("náº¡p") ||
         userText.includes("mua") ||
         userText.includes("giao")
       ) {
-        replyText = `Cảm ơn bạn! Hệ thống nạp tự động của ${targetChat.partnerName} đang xử lý đơn hàng ${targetChat.game}. Vui lòng kiểm tra mục Đơn hàng sau ít phút nhé!`;
+        replyText = `Cáº£m Æ¡n báº¡n! Há»‡ thá»‘ng náº¡p tá»± Ä‘á»™ng cá»§a ${targetChat.partnerName} Ä‘ang xá»­ lÃ½ Ä‘Æ¡n hÃ ng ${targetChat.game}. Vui lÃ²ng kiá»ƒm tra má»¥c ÄÆ¡n hÃ ng sau Ã­t phÃºt nhÃ©!`;
       } else if (
-        userText.includes("rẻ") ||
-        userText.includes("giá") ||
-        userText.includes("khấu") ||
+        userText.includes("ráº»") ||
+        userText.includes("giÃ¡") ||
+        userText.includes("kháº¥u") ||
         userText.includes("sale")
       ) {
-        replyText = `Dạ hiện tại bên mình đang chiết khấu trực tiếp rẻ nhất sàn rồi đó ạ, ngoài ra bạn còn được hưởng bảo hiểm hoàn tiền GamerProtect nhé.`;
+        replyText = `Dáº¡ hiá»‡n táº¡i bÃªn mÃ¬nh Ä‘ang chiáº¿t kháº¥u trá»±c tiáº¿p ráº» nháº¥t sÃ n rá»“i Ä‘Ã³ áº¡, ngoÃ i ra báº¡n cÃ²n Ä‘Æ°á»£c hÆ°á»Ÿng báº£o hiá»ƒm hoÃ n tiá»n GamerProtect nhÃ©.`;
       } else if (
         userText.includes("alo") ||
         userText.includes("hi") ||
         userText.includes("shop")
       ) {
-        replyText = `Dạ chào bạn! Shop vẫn luôn có nhân viên online trực hỗ trợ 24/7. Bạn cần hỏi về dịch vụ nào cứ nhắn cho mình nhé.`;
+        replyText = `Dáº¡ chÃ o báº¡n! Shop váº«n luÃ´n cÃ³ nhÃ¢n viÃªn online trá»±c há»— trá»£ 24/7. Báº¡n cáº§n há»i vá» dá»‹ch vá»¥ nÃ o cá»© nháº¯n cho mÃ¬nh nhÃ©.`;
       }
 
       const partnerMsg = { sender: "partner", text: replyText };
@@ -1689,7 +1698,7 @@ function App() {
   // Open Chat directly with a specific partner
   const openChatWithPartner = (partnerName, game) => {
     let existingIndex = chats.findIndex((c) => c.partnerName === partnerName);
-    let chatId = 0;
+    let chatId;
     if (existingIndex > -1) {
       chatId = chats[existingIndex].id;
     } else {
@@ -1703,7 +1712,7 @@ function App() {
         messages: [
           {
             sender: "partner",
-            text: `Chào bạn! Mình hỗ trợ dịch vụ game ${game}. Bạn cần gì cứ nhắn nhé.`,
+            text: `ChÃ o báº¡n! MÃ¬nh há»— trá»£ dá»‹ch vá»¥ game ${game}. Báº¡n cáº§n gÃ¬ cá»© nháº¯n nhÃ©.`,
           },
         ],
       };
@@ -1716,47 +1725,23 @@ function App() {
   const handleSellerSubmit = (e) => {
     e.preventDefault();
     if (!sellerExperience) {
-      triggerToast("Vui lòng nhập mô tả kinh nghiệm bán hàng!");
+      triggerToast("Vui lÃ²ng nháº­p mÃ´ táº£ kinh nghiá»‡m bÃ¡n hÃ ng!");
       return;
     }
     triggerToast(
-      `Gửi yêu cầu đăng ký bán game ${sellerGame} thành công! Hồ sơ đang được duyệt.`,
+      `Gá»­i yÃªu cáº§u Ä‘Äƒng kÃ½ bÃ¡n game ${sellerGame} thÃ nh cÃ´ng! Há»“ sÆ¡ Ä‘ang Ä‘Æ°á»£c duyá»‡t.`,
     );
     setActiveModal(null);
     setSellerExperience("");
   };
 
   // Toggle dynamic game list check/uncheck in sidebar filter
-  const toggleGameFilter = (gameId) => {
-    setFilterSelectedGames((prev) =>
-      prev.includes(gameId)
-        ? prev.filter((id) => id !== gameId)
-        : [...prev, gameId],
-    );
-  };
-
-  // Clear all sidebar filters in category catalog
-  const clearFilters = () => {
-    setFilterMinPrice("");
-    setFilterMaxPrice("");
-    setFilterSelectedGames(MOCK_GAMES.map((g) => g.id));
-    setSortOrder("cheapest");
-  };
-
   // Search autocomplete suggestion results
   const filteredSuggestions = searchQuery
     ? MOCK_GAMES.filter((g) =>
         g.name.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : [];
-
-  // Home filter options (Original categories shortcut)
-  const homeCategoryFilteredGames = MOCK_GAMES.filter((g) => {
-    const matchesCategory =
-      activeCategory === "all" || g.category === activeCategory;
-    const matchesTab = activeTab === "all" || g.category === activeTab;
-    return matchesCategory && matchesTab;
-  });
 
   // Flat database array compile of category items (Cross-game database collection)
   const flatCategoryItems = [];
@@ -1782,18 +1767,6 @@ function App() {
     return matchesGame && matchesMinPrice && matchesMaxPrice;
   });
 
-  // Apply Sort orders
-  const sortedFilteredCategoryItems = [...filteredCategoryItems].sort(
-    (a, b) => {
-      const priceA = Math.floor(a.price * MOCK_SELLERS[0].multiplier);
-      const priceB = Math.floor(b.price * MOCK_SELLERS[0].multiplier);
-      if (sortOrder === "cheapest") return priceA - priceB;
-      if (sortOrder === "expensive") return priceB - priceA;
-      if (sortOrder === "offers") return b.offers - a.offers;
-      return 0;
-    },
-  );
-
   return (
     <div className="g2g-clone-app">
       {/* Toast Alert Banner */}
@@ -1818,7 +1791,7 @@ function App() {
             <div className="nav-search-bar">
               <input
                 type="text"
-                placeholder="Tìm kiếm game, thẻ quà tặng, coins..."
+                placeholder="TÃ¬m kiáº¿m game, tháº» quÃ  táº·ng, coins..."
                 className="nav-search-input"
                 value={searchQuery}
                 onFocus={() => setSearchFocused(true)}
@@ -1830,7 +1803,7 @@ function App() {
                   className="clear-search-btn"
                   onClick={() => setSearchQuery("")}
                 >
-                  ×
+                  Ã—
                 </span>
               )}
               <button className="nav-search-btn">
@@ -1883,7 +1856,7 @@ function App() {
                               navigateToCatalog(game);
                             }}
                           >
-                            Ưu đãi
+                            Æ¯u Ä‘Ã£i
                           </span>
                           <span
                             className="chip"
@@ -1892,19 +1865,19 @@ function App() {
                               navigateToCatalog(game);
                             }}
                           >
-                            Nạp thẻ
+                            Náº¡p tháº»
                           </span>
                         </div>
                       </div>
                     ))
                   ) : (
                     <div className="no-suggestion">
-                      Không tìm thấy game nào phù hợp với "{searchQuery}"
+                      KhÃ´ng tÃ¬m tháº¥y game nÃ o phÃ¹ há»£p vá»›i "{searchQuery}"
                     </div>
                   )
                 ) : (
                   <div className="default-suggestions">
-                    <div className="suggestion-title">Xu Hướng Tìm Kiếm</div>
+                    <div className="suggestion-title">Xu HÆ°á»›ng TÃ¬m Kiáº¿m</div>
                     <div className="trending-chips-grid">
                       {MOCK_GAMES.slice(0, 4).map((g) => (
                         <div
@@ -1940,7 +1913,7 @@ function App() {
             <button
               className="cart-trigger-btn"
               onClick={() => setIsCartOpen(true)}
-              title="Giỏ Hàng"
+              title="Giá» HÃ ng"
             >
               <svg
                 width="22"
@@ -1968,7 +1941,7 @@ function App() {
                 if (chats.length > 0 && activeChatId === null)
                   setActiveChatId(chats[0].id);
               }}
-              title="Tin nhắn"
+              title="Tin nháº¯n"
             >
               <svg
                 width="22"
@@ -1985,7 +1958,7 @@ function App() {
             <button
               className="theme-toggle-btn"
               onClick={toggleTheme}
-              title="Đổi giao diện"
+              title="Äá»•i giao diá»‡n"
             >
               {theme === "dark" ? (
                 <svg
@@ -2017,19 +1990,19 @@ function App() {
               className="btn btn-secondary btn-sm"
               onClick={() => pushRoute("orders")}
             >
-              Đơn Hàng
+              ÄÆ¡n HÃ ng
             </button>
             {currentUser ? (
               <div className="user-account-display">
                 <span className="user-account-name">
-                  {currentUser.displayName || currentUser.name || "Người dùng"}
+                  {currentUser.displayName || currentUser.name || "NgÆ°á»i dÃ¹ng"}
                 </span>
                 <button
                   type="button"
                   className="logout-icon-button"
                   onClick={handleLogout}
-                  title="Đăng xuất"
-                  aria-label="Đăng xuất"
+                  title="ÄÄƒng xuáº¥t"
+                  aria-label="ÄÄƒng xuáº¥t"
                 >
                   <svg
                     width="18"
@@ -2052,7 +2025,7 @@ function App() {
                 className="btn btn-primary btn-sm"
                 onClick={() => setShowLogin(true)}
               >
-                Đăng nhập
+                ÄÄƒng nháº­p
               </button>
             )}
           </div>
@@ -2066,31 +2039,31 @@ function App() {
             className={`sub-nav-item ${selectedCategory === "all" && currentView === "category-catalog" ? "active" : ""}`}
             onClick={() => navigateToCategory("all")}
           >
-            🌐 Tất cả danh mục
+            ðŸŒ Táº¥t cáº£ danh má»¥c
           </span>
           <span
             className={`sub-nav-item ${selectedCategory === "coins" && currentView === "category-catalog" ? "active" : ""}`}
             onClick={() => navigateToCategory("coins")}
           >
-            🪙 Tiền tệ (Coins)
+            ðŸª™ Tiá»n tá»‡ (Coins)
           </span>
           <span
             className={`sub-nav-item ${selectedCategory === "accounts" && currentView === "category-catalog" ? "active" : ""}`}
             onClick={() => navigateToCategory("accounts")}
           >
-            👤 Tài khoản VIP
+            ðŸ‘¤ TÃ i khoáº£n VIP
           </span>
           <span
             className={`sub-nav-item ${selectedCategory === "cards" && currentView === "category-catalog" ? "active" : ""}`}
             onClick={() => navigateToCategory("cards")}
           >
-            💳 Thẻ Game / Gift Card
+            ðŸ’³ Tháº» Game / Gift Card
           </span>
           <span
             className={`sub-nav-item ${selectedCategory === "boosting" && currentView === "category-catalog" ? "active" : ""}`}
             onClick={() => navigateToCategory("boosting")}
           >
-            ⚡ Cày thuê (Boosting)
+            âš¡ CÃ y thuÃª (Boosting)
           </span>
         </div>
       </nav>
@@ -2109,18 +2082,18 @@ function App() {
               >
                 <div className="hero-left-content">
                   <h1 className="hero-title">
-                    Nơi game thủ <span>giao dịch tự tin</span>
+                    NÆ¡i game thá»§ <span>giao dá»‹ch tá»± tin</span>
                   </h1>
                   <p className="hero-subtitle">
-                    Mua. Bán. Nâng cấp. Thị trường trò chơi tất cả trong một với
-                    bảo vệ tích hợp.
+                    Mua. BÃ¡n. NÃ¢ng cáº¥p. Thá»‹ trÆ°á»ng trÃ² chÆ¡i táº¥t cáº£ trong má»™t vá»›i
+                    báº£o vá»‡ tÃ­ch há»£p.
                   </p>
 
                   <div className="hero-search-wrapper">
                     <div className="hero-search-bar">
                       <input
                         type="text"
-                        placeholder="Tìm kiếm trong G2G"
+                        placeholder="TÃ¬m kiáº¿m trong G2G"
                         className="hero-search-input"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -2128,7 +2101,7 @@ function App() {
                       />
                       <button
                         className="hero-search-btn-circle"
-                        aria-label="Tìm kiếm"
+                        aria-label="TÃ¬m kiáº¿m"
                       >
                         <svg
                           width="20"
@@ -2147,14 +2120,14 @@ function App() {
                     {/* Trust Badges */}
                     <div className="hero-trust-badges">
                       <span className="trust-badge-item">
-                        <span className="badge-icon">🛡️</span> GamerProtect
+                        <span className="badge-icon">ðŸ›¡ï¸</span> GamerProtect
                       </span>
                       <span className="trust-badge-item">
-                        <span className="badge-icon">✔️</span> Hơn 35 triệu giao
-                        dịch thành công
+                        <span className="badge-icon">âœ”ï¸</span> HÆ¡n 35 triá»‡u giao
+                        dá»‹ch thÃ nh cÃ´ng
                       </span>
                       <span className="trust-badge-item">
-                        <span className="badge-icon">💬</span> Hỗ trợ 24/7
+                        <span className="badge-icon">ðŸ’¬</span> Há»— trá»£ 24/7
                       </span>
                     </div>
                   </div>
@@ -2175,9 +2148,9 @@ function App() {
                 style={{ position: "relative", zIndex: 2 }}
               >
                 <p className="g2g-disclaimer-text">
-                  Tuyên bố từ chối trách nhiệm: Chúng tôi là một thị trường độc
-                  lập và không liên kết và/hoặc được phê duyệt bởi bất kỳ nhà
-                  phát triển hoặc studio trò chơi nào.
+                  TuyÃªn bá»‘ tá»« chá»‘i trÃ¡ch nhiá»‡m: ChÃºng tÃ´i lÃ  má»™t thá»‹ trÆ°á»ng Ä‘á»™c
+                  láº­p vÃ  khÃ´ng liÃªn káº¿t vÃ /hoáº·c Ä‘Æ°á»£c phÃª duyá»‡t bá»Ÿi báº¥t ká»³ nhÃ 
+                  phÃ¡t triá»ƒn hoáº·c studio trÃ² chÆ¡i nÃ o.
                 </p>
               </div>
             </section>
@@ -2188,7 +2161,7 @@ function App() {
               style={{ paddingTop: "32px", paddingBottom: "32px" }}
             >
               <div className="container">
-                <h2 className="g2g-category-heading">Chọn danh mục</h2>
+                <h2 className="g2g-category-heading">Chá»n danh má»¥c</h2>
 
                 <div className="g2g-category-grid">
                   {/* Row 1: Large Vertical Cards */}
@@ -2210,7 +2183,7 @@ function App() {
                         <path d="M6 14h2M12 14h4"></path>
                       </svg>
                     </div>
-                    <span className="category-large-name">Thẻ quà tặng</span>
+                    <span className="category-large-name">Tháº» quÃ  táº·ng</span>
                   </div>
 
                   <div
@@ -2232,13 +2205,13 @@ function App() {
                         <rect x="3" y="14" width="7" height="7" rx="1"></rect>
                       </svg>
                     </div>
-                    <span className="category-large-name">Trò chơi</span>
+                    <span className="category-large-name">TrÃ² chÆ¡i</span>
                   </div>
 
                   <div
                     className="g2g-category-large-card"
                     onClick={() =>
-                      triggerToast("Dịch vụ Game Coaching sẽ được ra mắt sớm!")
+                      triggerToast("Dá»‹ch vá»¥ Game Coaching sáº½ Ä‘Æ°á»£c ra máº¯t sá»›m!")
                     }
                   >
                     <span className="category-beta-badge">Beta</span>
@@ -2265,7 +2238,7 @@ function App() {
                     className="g2g-category-large-card"
                     onClick={() =>
                       triggerToast(
-                        "Khám phá các đại sứ GamePal ở mục bên dưới!",
+                        "KhÃ¡m phÃ¡ cÃ¡c Ä‘áº¡i sá»© GamePal á»Ÿ má»¥c bÃªn dÆ°á»›i!",
                       )
                     }
                   >
@@ -2293,7 +2266,7 @@ function App() {
                     className="g2g-category-horizontal-card"
                     onClick={() => navigateToCategory("coins")}
                   >
-                    <div className="category-horiz-icon">🪙</div>
+                    <div className="category-horiz-icon">ðŸª™</div>
                     <span className="category-horiz-name">Xu Game</span>
                   </div>
 
@@ -2301,38 +2274,38 @@ function App() {
                     className="g2g-category-horizontal-card"
                     onClick={() =>
                       triggerToast(
-                        "Dịch vụ nạp Vật phẩm đang chuẩn bị cập nhật!",
+                        "Dá»‹ch vá»¥ náº¡p Váº­t pháº©m Ä‘ang chuáº©n bá»‹ cáº­p nháº­t!",
                       )
                     }
                   >
-                    <div className="category-horiz-icon">📦</div>
-                    <span className="category-horiz-name">Vật phẩm</span>
+                    <div className="category-horiz-icon">ðŸ“¦</div>
+                    <span className="category-horiz-name">Váº­t pháº©m</span>
                   </div>
 
                   <div
                     className="g2g-category-horizontal-card"
                     onClick={() => navigateToCategory("accounts")}
                   >
-                    <div className="category-horiz-icon">👤</div>
-                    <span className="category-horiz-name">Tài khoản Game</span>
+                    <div className="category-horiz-icon">ðŸ‘¤</div>
+                    <span className="category-horiz-name">TÃ i khoáº£n Game</span>
                   </div>
 
                   <div
                     className="g2g-category-horizontal-card"
                     onClick={() => navigateToCategory("boosting")}
                   >
-                    <div className="category-horiz-icon">🔥</div>
-                    <span className="category-horiz-name">Cày thuê</span>
+                    <div className="category-horiz-icon">ðŸ”¥</div>
+                    <span className="category-horiz-name">CÃ y thuÃª</span>
                   </div>
 
                   {/* Row 3: Smaller Horizontal Cards */}
                   <div
                     className="g2g-category-horizontal-card"
                     onClick={() =>
-                      triggerToast("Thị trường trang phục/Skin đang bảo trì!")
+                      triggerToast("Thá»‹ trÆ°á»ng trang phá»¥c/Skin Ä‘ang báº£o trÃ¬!")
                     }
                   >
-                    <div className="category-horiz-icon">🛡️</div>
+                    <div className="category-horiz-icon">ðŸ›¡ï¸</div>
                     <span className="category-horiz-name">Skin</span>
                   </div>
 
@@ -2340,13 +2313,13 @@ function App() {
                     className="g2g-category-horizontal-card"
                     onClick={() =>
                       triggerToast(
-                        "Dịch vụ Nạp tiền điện thoại đang liên kết nhà mạng!",
+                        "Dá»‹ch vá»¥ Náº¡p tiá»n Ä‘iá»‡n thoáº¡i Ä‘ang liÃªn káº¿t nhÃ  máº¡ng!",
                       )
                     }
                   >
-                    <div className="category-horiz-icon">📱</div>
+                    <div className="category-horiz-icon">ðŸ“±</div>
                     <span className="category-horiz-name">
-                      Nạp tiền điện thoại
+                      Náº¡p tiá»n Ä‘iá»‡n thoáº¡i
                     </span>
                   </div>
 
@@ -2354,13 +2327,13 @@ function App() {
                     className="g2g-category-horizontal-card"
                     onClick={() =>
                       triggerToast(
-                        "Thị trường bản quyền phần mềm đang liên kết!",
+                        "Thá»‹ trÆ°á»ng báº£n quyá»n pháº§n má»m Ä‘ang liÃªn káº¿t!",
                       )
                     }
                   >
-                    <div className="category-horiz-icon">💻</div>
+                    <div className="category-horiz-icon">ðŸ’»</div>
                     <span className="category-horiz-name">
-                      Phần mềm &amp; Ứng dụng
+                      Pháº§n má»m &amp; á»¨ng dá»¥ng
                     </span>
                   </div>
 
@@ -2368,12 +2341,12 @@ function App() {
                     className="g2g-category-horizontal-card"
                     onClick={() =>
                       triggerToast(
-                        "Các gói nạp thẻ thanh toán visa/mastercard đang cập nhật!",
+                        "CÃ¡c gÃ³i náº¡p tháº» thanh toÃ¡n visa/mastercard Ä‘ang cáº­p nháº­t!",
                       )
                     }
                   >
-                    <div className="category-horiz-icon">💳</div>
-                    <span className="category-horiz-name">Thẻ thanh toán</span>
+                    <div className="category-horiz-icon">ðŸ’³</div>
+                    <span className="category-horiz-name">Tháº» thanh toÃ¡n</span>
                   </div>
                 </div>
               </div>
@@ -2385,7 +2358,7 @@ function App() {
                 <div className="flash-sale-header justify-between">
                   <div className="flex-center" style={{ gap: "16px" }}>
                     <h2 className="flash-sale-title">
-                      ⚡ DEAL CHỚP NHOÁNG (FLASH SALE)
+                      âš¡ DEAL CHá»šP NHOÃNG (FLASH SALE)
                     </h2>
                     <div className="countdown-timer-box">
                       <span className="time-digit">{formattedClock.hours}</span>
@@ -2400,7 +2373,7 @@ function App() {
                     </div>
                   </div>
                   <span className="flash-sale-subtitle">
-                    Thời gian có hạn - Số lượng có hạn
+                    Thá»i gian cÃ³ háº¡n - Sá»‘ lÆ°á»£ng cÃ³ háº¡n
                   </span>
                 </div>
 
@@ -2436,10 +2409,10 @@ function App() {
                           <h4 className="flash-item-name">{item.name}</h4>
                           <div className="flash-price-row">
                             <span className="original-price">
-                              {item.originalPrice.toLocaleString("vi-VN")}₫
+                              {item.originalPrice.toLocaleString("vi-VN")}â‚«
                             </span>
                             <span className="sale-price">
-                              {item.salePrice.toLocaleString("vi-VN")}₫
+                              {item.salePrice.toLocaleString("vi-VN")}â‚«
                             </span>
                           </div>
 
@@ -2452,12 +2425,12 @@ function App() {
                             </div>
                             <div className="progress-text-row justify-between">
                               <span>
-                                Đã bán: <strong>{percentSold}%</strong>
+                                ÄÃ£ bÃ¡n: <strong>{percentSold}%</strong>
                               </span>
                               <span>
-                                Còn lại:{" "}
+                                CÃ²n láº¡i:{" "}
                                 <strong style={{ color: "var(--brand-red)" }}>
-                                  {item.stockLeft} thẻ
+                                  {item.stockLeft} tháº»
                                 </strong>
                               </span>
                             </div>
@@ -2467,7 +2440,7 @@ function App() {
                             className="btn btn-primary btn-sm flash-buy-btn"
                             style={{ width: "100%" }}
                           >
-                            Giật Deal Ngay
+                            Giáº­t Deal Ngay
                           </button>
                         </div>
                       </div>
@@ -2477,13 +2450,13 @@ function App() {
               </div>
             </section>
 
-            {/* Trò chơi hay, Công ty tuyệt vời Title Banner */}
+            {/* TrÃ² chÆ¡i hay, CÃ´ng ty tuyá»‡t vá»i Title Banner */}
             <div
               className="container"
               style={{ marginTop: "48px", marginBottom: "-24px" }}
             >
               <div className="coaching-gamepal-main-heading">
-                Trò chơi hay, Công ty tuyệt vời
+                TrÃ² chÆ¡i hay, CÃ´ng ty tuyá»‡t vá»i
               </div>
             </div>
 
@@ -2504,20 +2477,20 @@ function App() {
                         <span className="beta-badge-small">Beta</span>
                       </h3>
                       <p className="coaching-section-subtitle">
-                        Muốn trở nên giỏi hơn? Đặt huấn luyện viên chuyên gia để
-                        phân tích lối chơi của bạn và mở khóa tiềm năng thực sự
-                        của bạn.
+                        Muá»‘n trá»Ÿ nÃªn giá»i hÆ¡n? Äáº·t huáº¥n luyá»‡n viÃªn chuyÃªn gia Ä‘á»ƒ
+                        phÃ¢n tÃ­ch lá»‘i chÆ¡i cá»§a báº¡n vÃ  má»Ÿ khÃ³a tiá»m nÄƒng thá»±c sá»±
+                        cá»§a báº¡n.
                       </p>
                     </div>
                     <span
                       className="explore-all-link"
                       onClick={() =>
                         triggerToast(
-                          "Dịch vụ Game Coaching sẽ ra mắt danh sách đầy đủ huấn luyện viên sớm!",
+                          "Dá»‹ch vá»¥ Game Coaching sáº½ ra máº¯t danh sÃ¡ch Ä‘áº§y Ä‘á»§ huáº¥n luyá»‡n viÃªn sá»›m!",
                         )
                       }
                     >
-                      Khám phá tất cả <span className="arrow">&gt;</span>
+                      KhÃ¡m phÃ¡ táº¥t cáº£ <span className="arrow">&gt;</span>
                     </span>
                   </div>
 
@@ -2571,20 +2544,20 @@ function App() {
                         GamePal <span className="beta-badge-small">Beta</span>
                       </h3>
                       <p className="coaching-section-subtitle">
-                        Chỉ muốn có thời gian vui vẻ? Hợp tác với GamePal đã
-                        được xác minh để có trải nghiệm chơi game tuyệt vời,
-                        không áp lực.
+                        Chá»‰ muá»‘n cÃ³ thá»i gian vui váº»? Há»£p tÃ¡c vá»›i GamePal Ä‘Ã£
+                        Ä‘Æ°á»£c xÃ¡c minh Ä‘á»ƒ cÃ³ tráº£i nghiá»‡m chÆ¡i game tuyá»‡t vá»i,
+                        khÃ´ng Ã¡p lá»±c.
                       </p>
                     </div>
                     <span
                       className="explore-all-link"
                       onClick={() =>
                         triggerToast(
-                          "Dịch vụ GamePal sẽ mở rộng danh sách đại sứ sớm!",
+                          "Dá»‹ch vá»¥ GamePal sáº½ má»Ÿ rá»™ng danh sÃ¡ch Ä‘áº¡i sá»© sá»›m!",
                         )
                       }
                     >
-                      Khám phá tất cả <span className="arrow">&gt;</span>
+                      KhÃ¡m phÃ¡ táº¥t cáº£ <span className="arrow">&gt;</span>
                     </span>
                   </div>
 
@@ -2617,10 +2590,10 @@ function App() {
               </div>
             </section>
 
-            {/* Top Trending tabbed Games Grid (Redesigned "Xem Xu hướng") */}
+            {/* Top Trending tabbed Games Grid (Redesigned "Xem Xu hÆ°á»›ng") */}
             <section className="trending-section">
               <div className="container">
-                <h2 className="g2g-trending-main-title">Xem Xu hướng</h2>
+                <h2 className="g2g-trending-main-title">Xem Xu hÆ°á»›ng</h2>
 
                 <div className="g2g-trending-tabs-wrapper">
                   <div className="g2g-trending-tabs-container">
@@ -2628,19 +2601,19 @@ function App() {
                       className={`g2g-trending-tab-link ${activeCategory === "cards" ? "active" : ""}`}
                       onClick={() => setActiveCategory("cards")}
                     >
-                      Thẻ quà tặng
+                      Tháº» quÃ  táº·ng
                     </span>
                     <span
                       className={`g2g-trending-tab-link ${activeCategory === "all" ? "active" : ""}`}
                       onClick={() => setActiveCategory("all")}
                     >
-                      Trò chơi
+                      TrÃ² chÆ¡i
                     </span>
                     <span
                       className="g2g-trending-tab-link"
                       onClick={() =>
                         triggerToast(
-                          "Hãy cuộn lên phía trên để xem dịch vụ Game Coaching!",
+                          "HÃ£y cuá»™n lÃªn phÃ­a trÃªn Ä‘á»ƒ xem dá»‹ch vá»¥ Game Coaching!",
                         )
                       }
                     >
@@ -2650,7 +2623,7 @@ function App() {
                       className="g2g-trending-tab-link"
                       onClick={() =>
                         triggerToast(
-                          "Hãy cuộn lên phía trên để xem dịch vụ GamePal!",
+                          "HÃ£y cuá»™n lÃªn phÃ­a trÃªn Ä‘á»ƒ xem dá»‹ch vá»¥ GamePal!",
                         )
                       }
                     >
@@ -2666,29 +2639,29 @@ function App() {
                       className="g2g-trending-tab-link"
                       onClick={() =>
                         triggerToast(
-                          "Thị trường Vật phẩm đang cập nhật xu hướng!",
+                          "Thá»‹ trÆ°á»ng Váº­t pháº©m Ä‘ang cáº­p nháº­t xu hÆ°á»›ng!",
                         )
                       }
                     >
-                      Vật phẩm
+                      Váº­t pháº©m
                     </span>
                     <span
                       className={`g2g-trending-tab-link ${activeCategory === "accounts" ? "active" : ""}`}
                       onClick={() => setActiveCategory("accounts")}
                     >
-                      Tài khoản Game
+                      TÃ i khoáº£n Game
                     </span>
                     <span
                       className={`g2g-trending-tab-link ${activeCategory === "boosting" ? "active" : ""}`}
                       onClick={() => setActiveCategory("boosting")}
                     >
-                      Cày thuê
+                      CÃ y thuÃª
                     </span>
                     <span
                       className="g2g-trending-tab-link"
                       onClick={() =>
                         triggerToast(
-                          "Thị trường Trang phục/Skin đang cập nhật xu hướng!",
+                          "Thá»‹ trÆ°á»ng Trang phá»¥c/Skin Ä‘ang cáº­p nháº­t xu hÆ°á»›ng!",
                         )
                       }
                     >
@@ -2698,19 +2671,19 @@ function App() {
                       className="g2g-trending-tab-link"
                       onClick={() =>
                         triggerToast(
-                          "Giao dịch nạp tiền điện thoại đang liên kết đại lý!",
+                          "Giao dá»‹ch náº¡p tiá»n Ä‘iá»‡n thoáº¡i Ä‘ang liÃªn káº¿t Ä‘áº¡i lÃ½!",
                         )
                       }
                     >
-                      Nạp tiền điện thoại
+                      Náº¡p tiá»n Ä‘iá»‡n thoáº¡i
                     </span>
                     <span
                       className="g2g-trending-tab-link"
                       onClick={() =>
-                        triggerToast("Phần mềm bản quyền đang liên kết đại lý!")
+                        triggerToast("Pháº§n má»m báº£n quyá»n Ä‘ang liÃªn káº¿t Ä‘áº¡i lÃ½!")
                       }
                     >
-                      Phần mềm &amp; Ứng dụng
+                      Pháº§n má»m &amp; á»¨ng dá»¥ng
                     </span>
                   </div>
 
@@ -2719,7 +2692,7 @@ function App() {
                     className="g2g-trending-tab-arrow"
                     onClick={() =>
                       triggerToast(
-                        "Cuộn ngang hoặc kéo để xem thêm danh mục xu hướng!",
+                        "Cuá»™n ngang hoáº·c kÃ©o Ä‘á»ƒ xem thÃªm danh má»¥c xu hÆ°á»›ng!",
                       )
                     }
                   >
@@ -2756,7 +2729,7 @@ function App() {
                     className="g2g-trending-view-all-btn"
                     onClick={() => setActiveCategory("all")}
                   >
-                    Xem tất cả
+                    Xem táº¥t cáº£
                   </button>
                 </div>
               </div>
@@ -2770,25 +2743,25 @@ function App() {
                     <div className="promo-glow"></div>
                     <div>
                       <h3 className="promo-title">
-                        Chương Trình Đối Tác &amp; Affiliate
+                        ChÆ°Æ¡ng TrÃ¬nh Äá»‘i TÃ¡c &amp; Affiliate
                       </h3>
                       <p className="promo-description">
-                        Chia sẻ liên kết G2G của bạn và kiếm tới 5% hoa hồng
-                        trên mỗi giao dịch thành công. Rút tiền nhanh chóng và
-                        trực quan.
+                        Chia sáº» liÃªn káº¿t G2G cá»§a báº¡n vÃ  kiáº¿m tá»›i 5% hoa há»“ng
+                        trÃªn má»—i giao dá»‹ch thÃ nh cÃ´ng. RÃºt tiá»n nhanh chÃ³ng vÃ 
+                        trá»±c quan.
                       </p>
                       <div className="promo-steps">
                         <div className="promo-step">
                           <span className="step-num">1</span>
-                          <span>Đăng ký tham gia lấy link giới thiệu</span>
+                          <span>ÄÄƒng kÃ½ tham gia láº¥y link giá»›i thiá»‡u</span>
                         </div>
                         <div className="promo-step">
                           <span className="step-num">2</span>
-                          <span>Chia sẻ link trên mạng xã hội, diễn đàn</span>
+                          <span>Chia sáº» link trÃªn máº¡ng xÃ£ há»™i, diá»…n Ä‘Ã n</span>
                         </div>
                         <div className="promo-step">
                           <span className="step-num">3</span>
-                          <span>Nhận tiền hoa hồng tự động về ví G2G</span>
+                          <span>Nháº­n tiá»n hoa há»“ng tá»± Ä‘á»™ng vá» vÃ­ G2G</span>
                         </div>
                       </div>
                     </div>
@@ -2797,11 +2770,11 @@ function App() {
                       style={{ alignSelf: "flex-start" }}
                       onClick={() =>
                         triggerToast(
-                          "Hệ thống đối tác đang chuẩn bị ra mắt vào tháng tới!",
+                          "Há»‡ thá»‘ng Ä‘á»‘i tÃ¡c Ä‘ang chuáº©n bá»‹ ra máº¯t vÃ o thÃ¡ng tá»›i!",
                         )
                       }
                     >
-                      Bắt đầu kiếm tiền
+                      Báº¯t Ä‘áº§u kiáº¿m tiá»n
                     </button>
                   </div>
 
@@ -2824,23 +2797,23 @@ function App() {
                         className="promo-title"
                         style={{ color: "var(--gold)" }}
                       >
-                        Bảo Hiểm GamerProtect
+                        Báº£o Hiá»ƒm GamerProtect
                       </h3>
                       <p className="promo-description">
-                        Giao dịch được bảo vệ 100% bằng cơ chế ký quỹ và bảo vệ
-                        tài khoản cho cả người mua và người bán.
+                        Giao dá»‹ch Ä‘Æ°á»£c báº£o vá»‡ 100% báº±ng cÆ¡ cháº¿ kÃ½ quá»¹ vÃ  báº£o vá»‡
+                        tÃ i khoáº£n cho cáº£ ngÆ°á»i mua vÃ  ngÆ°á»i bÃ¡n.
                       </p>
                       <ul className="protection-list">
                         <li>
-                          <span>✓</span> Cam kết hoàn tiền 100% khi xảy ra sự cố
-                          tài khoản.
+                          <span>âœ“</span> Cam káº¿t hoÃ n tiá»n 100% khi xáº£y ra sá»± cá»‘
+                          tÃ i khoáº£n.
                         </li>
                         <li>
-                          <span>✓</span> Giải quyết tranh chấp công bằng 24/7.
+                          <span>âœ“</span> Giáº£i quyáº¿t tranh cháº¥p cÃ´ng báº±ng 24/7.
                         </li>
                         <li>
-                          <span>✓</span> Bảo vệ thông tin thanh toán tuyệt đối
-                          qua cổng SSL.
+                          <span>âœ“</span> Báº£o vá»‡ thÃ´ng tin thanh toÃ¡n tuyá»‡t Ä‘á»‘i
+                          qua cá»•ng SSL.
                         </li>
                       </ul>
                     </div>
@@ -2849,11 +2822,11 @@ function App() {
                       style={{ alignSelf: "flex-start" }}
                       onClick={() =>
                         triggerToast(
-                          "Bảo hiểm GamerProtect được áp dụng mặc định cho mọi giao dịch!",
+                          "Báº£o hiá»ƒm GamerProtect Ä‘Æ°á»£c Ã¡p dá»¥ng máº·c Ä‘á»‹nh cho má»i giao dá»‹ch!",
                         )
                       }
                     >
-                      Tìm hiểu thêm
+                      TÃ¬m hiá»ƒu thÃªm
                     </button>
                   </div>
                 </div>
@@ -2867,7 +2840,7 @@ function App() {
           <section className="directory-page-section">
             <div className="container">
               <div className="breadcrumbs">
-                <span onClick={() => pushRoute("home")}>Trang chủ</span>
+                <span onClick={() => pushRoute("home")}>Trang chá»§</span>
                 <span className="separator">&gt;</span>
                 <span className="active">Game Coaching</span>
               </div>
@@ -2875,10 +2848,10 @@ function App() {
               <div className="directory-hero-banner">
                 <div className="directory-hero-overlay"></div>
                 <div className="directory-hero-content">
-                  <h1>Huấn Luyện Viên Chuyên Nghiệp</h1>
+                  <h1>Huáº¥n Luyá»‡n ViÃªn ChuyÃªn Nghiá»‡p</h1>
                   <p>
-                    Đặt huấn luyện viên đẳng cấp để phân tích lối chơi, nâng tầm
-                    trình độ và leo hạng thần tốc!
+                    Äáº·t huáº¥n luyá»‡n viÃªn Ä‘áº³ng cáº¥p Ä‘á»ƒ phÃ¢n tÃ­ch lá»‘i chÆ¡i, nÃ¢ng táº§m
+                    trÃ¬nh Ä‘á»™ vÃ  leo háº¡ng tháº§n tá»‘c!
                   </p>
                 </div>
               </div>
@@ -2888,7 +2861,7 @@ function App() {
                 <div className="search-box-wrapper">
                   <input
                     type="text"
-                    placeholder="Tìm tên huấn luyện viên..."
+                    placeholder="TÃ¬m tÃªn huáº¥n luyá»‡n viÃªn..."
                     className="dir-search-input"
                     value={coachingSearchQuery}
                     onChange={(e) => setCoachingSearchQuery(e.target.value)}
@@ -2900,7 +2873,7 @@ function App() {
                     value={coachingGameFilter}
                     onChange={(e) => setCoachingGameFilter(e.target.value)}
                   >
-                    <option value="all">Tất cả game</option>
+                    <option value="all">Táº¥t cáº£ game</option>
                     <option value="Valorant">Valorant</option>
                     <option value="Dota 2">Dota 2</option>
                     <option value="League of Legends">League of Legends</option>
@@ -2939,25 +2912,25 @@ function App() {
                             ? "Valorant Pro Coach"
                             : coach.id === "c3" || coach.id === "c4"
                               ? "Dota 2 Immortals"
-                              : "LMHT Thách Đấu"}
+                              : "LMHT ThÃ¡ch Äáº¥u"}
                         </span>
                         <div className="coach-rating-stars">
-                          ⭐ 4.9 (140+ đánh giá)
+                          â­ 4.9 (140+ Ä‘Ã¡nh giÃ¡)
                         </div>
                       </div>
                     </div>
 
                     <div className="coach-desc-body">
-                      Chuyên phân tích lối chơi macro, sửa tư duy di chuyển,
-                      hướng dẫn quản lý lính và tối ưu hóa bể tướng leo rank
-                      hiệu quả.
+                      ChuyÃªn phÃ¢n tÃ­ch lá»‘i chÆ¡i macro, sá»­a tÆ° duy di chuyá»ƒn,
+                      hÆ°á»›ng dáº«n quáº£n lÃ½ lÃ­nh vÃ  tá»‘i Æ°u hÃ³a bá»ƒ tÆ°á»›ng leo rank
+                      hiá»‡u quáº£.
                     </div>
 
                     <div className="coach-card-footer justify-between">
                       <div>
-                        <span className="coach-price-label">Giá mỗi giờ</span>
+                        <span className="coach-price-label">GiÃ¡ má»—i giá»</span>
                         <div className="coach-price-value">
-                          {coach.id === "c1" ? "180.000₫" : "150.000₫"}
+                          {coach.id === "c1" ? "180.000â‚«" : "150.000â‚«"}
                         </div>
                       </div>
                       <button
@@ -2966,7 +2939,7 @@ function App() {
                           openChatWithPartner(coach.name, "Coaching")
                         }
                       >
-                        💬 Đặt Lịch &amp; Chat
+                        ðŸ’¬ Äáº·t Lá»‹ch &amp; Chat
                       </button>
                     </div>
                   </div>
@@ -2981,7 +2954,7 @@ function App() {
           <section className="directory-page-section">
             <div className="container">
               <div className="breadcrumbs">
-                <span onClick={() => pushRoute("home")}>Trang chủ</span>
+                <span onClick={() => pushRoute("home")}>Trang chá»§</span>
                 <span className="separator">&gt;</span>
                 <span className="active">GamePal Companion</span>
               </div>
@@ -2989,10 +2962,10 @@ function App() {
               <div className="directory-hero-banner gamepal-hero-bg">
                 <div className="directory-hero-overlay"></div>
                 <div className="directory-hero-content">
-                  <h1>Đồng Hành Cùng Bạn GamePal</h1>
+                  <h1>Äá»“ng HÃ nh CÃ¹ng Báº¡n GamePal</h1>
                   <p>
-                    Trải nghiệm chơi game vui vẻ, không áp lực! Tìm bạn đồng
-                    hành nói chuyện dễ thương, chơi game giỏi.
+                    Tráº£i nghiá»‡m chÆ¡i game vui váº», khÃ´ng Ã¡p lá»±c! TÃ¬m báº¡n Ä‘á»“ng
+                    hÃ nh nÃ³i chuyá»‡n dá»… thÆ°Æ¡ng, chÆ¡i game giá»i.
                   </p>
                 </div>
               </div>
@@ -3002,7 +2975,7 @@ function App() {
                 <div className="search-box-wrapper">
                   <input
                     type="text"
-                    placeholder="Tìm tên bạn đồng hành..."
+                    placeholder="TÃ¬m tÃªn báº¡n Ä‘á»“ng hÃ nh..."
                     className="dir-search-input"
                     value={gamepalSearchQuery}
                     onChange={(e) => setGamepalSearchQuery(e.target.value)}
@@ -3014,7 +2987,7 @@ function App() {
                     value={gamepalGameFilter}
                     onChange={(e) => setGamepalGameFilter(e.target.value)}
                   >
-                    <option value="all">Tất cả game</option>
+                    <option value="all">Táº¥t cáº£ game</option>
                     <option value="Valorant">Valorant</option>
                     <option value="League of Legends">League of Legends</option>
                     <option value="Genshin Impact">Genshin Impact</option>
@@ -3050,33 +3023,33 @@ function App() {
                         <h4>{pal.name}</h4>
                         <span className="coach-game-tag">
                           {pal.id === "g1" || pal.id === "g4"
-                            ? "Valorant • Mic On"
+                            ? "Valorant â€¢ Mic On"
                             : pal.id === "g2" || pal.id === "g6"
-                              ? "LMHT • Vui Vẻ"
-                              : "Genshin • Co-op"}
+                              ? "LMHT â€¢ Vui Váº»"
+                              : "Genshin â€¢ Co-op"}
                         </span>
                         <div className="coach-rating-stars">
-                          ⭐ 5.0 (80+ review)
+                          â­ 5.0 (80+ review)
                         </div>
                       </div>
                     </div>
 
                     <div className="coach-desc-body">
-                      Có mic nói chuyện dễ nghe, kỹ năng cá nhân khá tốt, sẵn
-                      sàng gánh tạ, tấu hài giúp bạn có trải nghiệm chơi game
-                      thư giãn nhất!
+                      CÃ³ mic nÃ³i chuyá»‡n dá»… nghe, ká»¹ nÄƒng cÃ¡ nhÃ¢n khÃ¡ tá»‘t, sáºµn
+                      sÃ ng gÃ¡nh táº¡, táº¥u hÃ i giÃºp báº¡n cÃ³ tráº£i nghiá»‡m chÆ¡i game
+                      thÆ° giÃ£n nháº¥t!
                     </div>
 
                     <div className="coach-card-footer justify-between">
                       <div>
-                        <span className="coach-price-label">Giá mỗi giờ</span>
-                        <div className="coach-price-value">80.000₫</div>
+                        <span className="coach-price-label">GiÃ¡ má»—i giá»</span>
+                        <div className="coach-price-value">80.000â‚«</div>
                       </div>
                       <button
                         className="btn btn-outline btn-sm"
                         onClick={() => openChatWithPartner(pal.name, "GamePal")}
                       >
-                        💬 Chat Ngay
+                        ðŸ’¬ Chat Ngay
                       </button>
                     </div>
                   </div>
@@ -3091,27 +3064,27 @@ function App() {
           <section className="mobile-topup-page-section">
             <div className="container">
               <div className="breadcrumbs">
-                <span onClick={() => pushRoute("home")}>Trang chủ</span>
+                <span onClick={() => pushRoute("home")}>Trang chá»§</span>
                 <span className="separator">&gt;</span>
-                <span className="active">Nạp tiền điện thoại</span>
+                <span className="active">Náº¡p tiá»n Ä‘iá»‡n thoáº¡i</span>
               </div>
 
               <div className="topup-layout-grid">
                 {/* Form Column */}
                 <div className="topup-form-container">
-                  <h2 className="topup-form-title">Nạp Điện Thoại Tự Động</h2>
+                  <h2 className="topup-form-title">Náº¡p Äiá»‡n Thoáº¡i Tá»± Äá»™ng</h2>
                   <p className="topup-form-subtitle">
-                    Điền số điện thoại, chọn nhà mạng và mệnh giá để nạp chiết
-                    khấu rẻ nhất thị trường.
+                    Äiá»n sá»‘ Ä‘iá»‡n thoáº¡i, chá»n nhÃ  máº¡ng vÃ  má»‡nh giÃ¡ Ä‘á»ƒ náº¡p chiáº¿t
+                    kháº¥u ráº» nháº¥t thá»‹ trÆ°á»ng.
                   </p>
 
                   <div className="form-group" style={{ marginTop: "24px" }}>
                     <label className="topup-input-label">
-                      Số điện thoại nhận tiền
+                      Sá»‘ Ä‘iá»‡n thoáº¡i nháº­n tiá»n
                     </label>
                     <input
                       type="tel"
-                      placeholder="Nhập số điện thoại (ví dụ: 0987654321)"
+                      placeholder="Nháº­p sá»‘ Ä‘iá»‡n thoáº¡i (vÃ­ dá»¥: 0987654321)"
                       className="topup-tel-input"
                       value={topupPhone}
                       onChange={(e) =>
@@ -3122,7 +3095,7 @@ function App() {
 
                   {/* Operator selectors */}
                   <div className="form-group">
-                    <label className="topup-input-label">Chọn nhà mạng</label>
+                    <label className="topup-input-label">Chá»n nhÃ  máº¡ng</label>
                     <div className="operator-selector-pills">
                       <div
                         className={`operator-pill ${topupOperator === "viettel" ? "active" : ""}`}
@@ -3151,7 +3124,7 @@ function App() {
                   {/* Denomination select grid */}
                   <div className="form-group">
                     <label className="topup-input-label">
-                      Chọn mệnh giá nạp
+                      Chá»n má»‡nh giÃ¡ náº¡p
                     </label>
                     <div className="topup-denoms-grid">
                       {[10000, 20000, 50000, 100000, 200000, 500000].map(
@@ -3162,10 +3135,10 @@ function App() {
                             onClick={() => setTopupAmount(val)}
                           >
                             <div className="denom-face-value">
-                              {val.toLocaleString("vi-VN")}₫
+                              {val.toLocaleString("vi-VN")}â‚«
                             </div>
                             <div className="denom-selling-price">
-                              Giá bán:{" "}
+                              GiÃ¡ bÃ¡n:{" "}
                               {Math.floor(
                                 val *
                                   (topupOperator === "viettel"
@@ -3174,7 +3147,7 @@ function App() {
                                       ? 0.97
                                       : 0.965),
                               ).toLocaleString("vi-VN")}
-                              ₫
+                              â‚«
                             </div>
                           </div>
                         ),
@@ -3188,7 +3161,7 @@ function App() {
                     onClick={() => {
                       if (!topupPhone || topupPhone.length < 10) {
                         triggerToast(
-                          "Vui lòng nhập đúng định dạng số điện thoại 10 số!",
+                          "Vui lÃ²ng nháº­p Ä‘Ãºng Ä‘á»‹nh dáº¡ng sá»‘ Ä‘iá»‡n thoáº¡i 10 sá»‘!",
                         );
                         return;
                       }
@@ -3202,23 +3175,23 @@ function App() {
                       );
                       const topupItem = {
                         cartId: `topup-${topupOperator}-${topupAmount}-${Date.now()}`,
-                        itemName: `Nạp tiền ${topupOperator.toUpperCase()} - SĐT: ${topupPhone}`,
+                        itemName: `Náº¡p tiá»n ${topupOperator.toUpperCase()} - SÄT: ${topupPhone}`,
                         price: finalPrice,
                         qty: 1,
                         color:
                           "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                        textIcon: "📱",
+                        textIcon: "ðŸ“±",
                         sellerName: "G2G AutoTopup",
-                        gameName: "Nạp Điện Thoại",
+                        gameName: "Náº¡p Äiá»‡n Thoáº¡i",
                       };
                       setCart((prev) => [...prev, topupItem]);
                       setIsCartOpen(true);
                       triggerToast(
-                        "Đã thêm hóa đơn nạp điện thoại vào Giỏ hàng!",
+                        "ÄÃ£ thÃªm hÃ³a Ä‘Æ¡n náº¡p Ä‘iá»‡n thoáº¡i vÃ o Giá» hÃ ng!",
                       );
                     }}
                   >
-                    🚀 Nạp Ngay (Thanh toán qua giỏ hàng)
+                    ðŸš€ Náº¡p Ngay (Thanh toÃ¡n qua giá» hÃ ng)
                   </button>
                 </div>
 
@@ -3226,21 +3199,21 @@ function App() {
                 <div className="topup-guide-container">
                   <div className="guide-card-overlay"></div>
                   <div className="guide-card-content">
-                    <h3 className="guide-card-title">🛡️ Giao Dịch An Toàn</h3>
+                    <h3 className="guide-card-title">ðŸ›¡ï¸ Giao Dá»‹ch An ToÃ n</h3>
                     <ul className="guide-steps-list">
                       <li>
-                        <strong>Giao hàng tự động:</strong> Hệ thống tự động bắn
-                        tiền trực tiếp vào tài khoản thuê bao trả trước/trả sau
-                        trong 5 phút.
+                        <strong>Giao hÃ ng tá»± Ä‘á»™ng:</strong> Há»‡ thá»‘ng tá»± Ä‘á»™ng báº¯n
+                        tiá»n trá»±c tiáº¿p vÃ o tÃ i khoáº£n thuÃª bao tráº£ trÆ°á»›c/tráº£ sau
+                        trong 5 phÃºt.
                       </li>
                       <li>
-                        <strong>GamerProtect bảo vệ:</strong> Cam kết hoàn tiền
-                        100% nếu xảy ra lỗi hệ thống hoặc không nhận được tiền
-                        nạp.
+                        <strong>GamerProtect báº£o vá»‡:</strong> Cam káº¿t hoÃ n tiá»n
+                        100% náº¿u xáº£y ra lá»—i há»‡ thá»‘ng hoáº·c khÃ´ng nháº­n Ä‘Æ°á»£c tiá»n
+                        náº¡p.
                       </li>
                       <li>
-                        <strong>Hỗ trợ trực tuyến:</strong> Đội ngũ chăm sóc
-                        khách hàng hỗ trợ giải quyết thắc mắc về số thuê bao
+                        <strong>Há»— trá»£ trá»±c tuyáº¿n:</strong> Äá»™i ngÅ© chÄƒm sÃ³c
+                        khÃ¡ch hÃ ng há»— trá»£ giáº£i quyáº¿t tháº¯c máº¯c vá» sá»‘ thuÃª bao
                         24/7.
                       </li>
                     </ul>
@@ -3257,38 +3230,38 @@ function App() {
             <div className="container">
               {/* Breadcrumbs */}
               <div className="breadcrumbs">
-                <span onClick={() => pushRoute("home")}>Trang chủ</span>
+                <span onClick={() => pushRoute("home")}>Trang chá»§</span>
                 <span className="separator">&gt;</span>
-                <span>Danh mục sản phẩm</span>
+                <span>Danh má»¥c sáº£n pháº©m</span>
                 <span className="separator">&gt;</span>
                 <span className="active">
                   {selectedCategory === "all"
-                    ? "Tất cả sản phẩm"
+                    ? "Táº¥t cáº£ sáº£n pháº©m"
                     : selectedCategory === "coins"
-                      ? "Tiền tệ Game (Coins)"
+                      ? "Tiá»n tá»‡ Game (Coins)"
                       : selectedCategory === "accounts"
-                        ? "Tài khoản VIP"
+                        ? "TÃ i khoáº£n VIP"
                         : selectedCategory === "cards"
-                          ? "Thẻ game / Gift Card"
-                          : "Cày thuê (Boosting)"}
+                          ? "Tháº» game / Gift Card"
+                          : "CÃ y thuÃª (Boosting)"}
                 </span>
               </div>
 
               {/* Title Banner */}
               <div className="category-directory-banner">
                 <div className="category-header-icon-box">
-                  {selectedCategory === "all" && "🌐"}
-                  {selectedCategory === "coins" && "🪙"}
-                  {selectedCategory === "accounts" && "👤"}
-                  {selectedCategory === "cards" && "💳"}
-                  {selectedCategory === "boosting" && "⚡"}
+                  {selectedCategory === "all" && "ðŸŒ"}
+                  {selectedCategory === "coins" && "ðŸª™"}
+                  {selectedCategory === "accounts" && "ðŸ‘¤"}
+                  {selectedCategory === "cards" && "ðŸ’³"}
+                  {selectedCategory === "boosting" && "âš¡"}
                 </div>
                 <h1 className="category-directory-title">
-                  {selectedCategory === "all" && "Trò chơi & Thương hiệu"}
-                  {selectedCategory === "coins" && "Tiền tệ game (Coins)"}
-                  {selectedCategory === "accounts" && "Tài khoản game VIP"}
-                  {selectedCategory === "cards" && "Thẻ game & Quà tặng"}
-                  {selectedCategory === "boosting" && "Cày thuê (Boosting)"}
+                  {selectedCategory === "all" && "TrÃ² chÆ¡i & ThÆ°Æ¡ng hiá»‡u"}
+                  {selectedCategory === "coins" && "Tiá»n tá»‡ game (Coins)"}
+                  {selectedCategory === "accounts" && "TÃ i khoáº£n game VIP"}
+                  {selectedCategory === "cards" && "Tháº» game & QuÃ  táº·ng"}
+                  {selectedCategory === "boosting" && "CÃ y thuÃª (Boosting)"}
                 </h1>
               </div>
 
@@ -3309,7 +3282,7 @@ function App() {
                   </svg>
                   <input
                     type="text"
-                    placeholder="Tìm kiếm thương hiệu..."
+                    placeholder="TÃ¬m kiáº¿m thÆ°Æ¡ng hiá»‡u..."
                     className="brand-search-input-field"
                     value={brandSearchQuery}
                     onChange={(e) => setBrandSearchQuery(e.target.value)}
@@ -3320,7 +3293,7 @@ function App() {
                     className={`brand-tab-item ${activeBrandTab === "all" ? "active" : ""}`}
                     onClick={() => setActiveBrandTab("all")}
                   >
-                    Tất cả
+                    Táº¥t cáº£
                   </span>
                   <span
                     className={`brand-tab-item ${activeBrandTab === "coins" ? "active" : ""}`}
@@ -3332,19 +3305,19 @@ function App() {
                     className={`brand-tab-item ${activeBrandTab === "accounts" ? "active" : ""}`}
                     onClick={() => setActiveBrandTab("accounts")}
                   >
-                    Tài khoản VIP
+                    TÃ i khoáº£n VIP
                   </span>
                   <span
                     className={`brand-tab-item ${activeBrandTab === "cards" ? "active" : ""}`}
                     onClick={() => setActiveBrandTab("cards")}
                   >
-                    Thẻ game
+                    Tháº» game
                   </span>
                   <span
                     className={`brand-tab-item ${activeBrandTab === "boosting" ? "active" : ""}`}
                     onClick={() => setActiveBrandTab("boosting")}
                   >
-                    Cày thuê
+                    CÃ y thuÃª
                   </span>
                 </div>
               </div>
@@ -3371,11 +3344,11 @@ function App() {
                 if (filteredGames.length === 0) {
                   return (
                     <div className="empty-catalog-results">
-                      <span className="empty-icon">📂</span>
-                      <h4>Không tìm thấy thương hiệu nào!</h4>
+                      <span className="empty-icon">ðŸ“‚</span>
+                      <h4>KhÃ´ng tÃ¬m tháº¥y thÆ°Æ¡ng hiá»‡u nÃ o!</h4>
                       <p>
-                        Vui lòng nhập lại tên game hoặc thương hiệu khác trong
-                        thanh tìm kiếm bên trên.
+                        Vui lÃ²ng nháº­p láº¡i tÃªn game hoáº·c thÆ°Æ¡ng hiá»‡u khÃ¡c trong
+                        thanh tÃ¬m kiáº¿m bÃªn trÃªn.
                       </p>
                       <button
                         className="btn btn-primary btn-sm"
@@ -3384,7 +3357,7 @@ function App() {
                           setActiveBrandTab("all");
                         }}
                       >
-                        Đặt lại bộ lọc
+                        Äáº·t láº¡i bá»™ lá»c
                       </button>
                     </div>
                   );
@@ -3392,9 +3365,9 @@ function App() {
 
                 return (
                   <>
-                    {/* Xu hướng (Trending) Blocks Grid */}
+                    {/* Xu hÆ°á»›ng (Trending) Blocks Grid */}
                     <div className="directory-section-container">
-                      <h3 className="directory-section-title">Xu Hướng</h3>
+                      <h3 className="directory-section-title">Xu HÆ°á»›ng</h3>
                       <div className="brand-trending-grid">
                         {trendingGames.map((game) => {
                           const totalOffers = game.items.reduce(
@@ -3413,7 +3386,7 @@ function App() {
                                   {game.name}
                                 </h4>
                                 <span className="brand-offers-pill">
-                                  {totalOffers} ưu đãi
+                                  {totalOffers} Æ°u Ä‘Ã£i
                                 </span>
                               </div>
                             </div>
@@ -3422,22 +3395,22 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Tất cả thương hiệu (All Brands) Grid */}
+                    {/* Táº¥t cáº£ thÆ°Æ¡ng hiá»‡u (All Brands) Grid */}
                     <div
                       className="directory-section-container"
                       style={{ marginTop: "40px" }}
                     >
                       <h3 className="directory-section-title">
-                        Tất cả thương hiệu cho{" "}
+                        Táº¥t cáº£ thÆ°Æ¡ng hiá»‡u cho{" "}
                         {selectedCategory === "all"
-                          ? "Trò chơi"
+                          ? "TrÃ² chÆ¡i"
                           : selectedCategory === "coins"
-                            ? "Tiền tệ Game (Coins)"
+                            ? "Tiá»n tá»‡ Game (Coins)"
                             : selectedCategory === "accounts"
-                              ? "Tài khoản VIP"
+                              ? "TÃ i khoáº£n VIP"
                               : selectedCategory === "cards"
-                                ? "Thẻ game / Gift Card"
-                                : "Cày thuê (Boosting)"}
+                                ? "Tháº» game / Gift Card"
+                                : "CÃ y thuÃª (Boosting)"}
                       </h3>
                       <div className="brand-all-grid">
                         {allGames.map((game) => {
@@ -3455,7 +3428,7 @@ function App() {
                                 {game.name}
                               </span>
                               <span className="brand-all-offers">
-                                {totalOffers} ưu đãi
+                                {totalOffers} Æ°u Ä‘Ã£i
                               </span>
                             </div>
                           );
@@ -3475,9 +3448,9 @@ function App() {
             <div className="container">
               {/* Breadcrumbs */}
               <div className="breadcrumbs">
-                <span onClick={() => pushRoute("home")}>Trang chủ</span>
+                <span onClick={() => pushRoute("home")}>Trang chá»§</span>
                 <span className="separator">&gt;</span>
-                <span>Thị trường game</span>
+                <span>Thá»‹ trÆ°á»ng game</span>
                 <span className="separator">&gt;</span>
                 <span className="active">{selectedGame.name}</span>
               </div>
@@ -3498,11 +3471,11 @@ function App() {
                   className="btn btn-secondary share-btn-box"
                   onClick={() =>
                     triggerToast(
-                      "Đường liên kết chia sẻ đã được sao chép vào bộ nhớ tạm!",
+                      "ÄÆ°á»ng liÃªn káº¿t chia sáº» Ä‘Ã£ Ä‘Æ°á»£c sao chÃ©p vÃ o bá»™ nhá»› táº¡m!",
                     )
                   }
                 >
-                  <span>🔗 Chia sẻ</span>
+                  <span>ðŸ”— Chia sáº»</span>
                 </button>
               </div>
 
@@ -3512,7 +3485,7 @@ function App() {
                   className={`service-switcher-circle ${selectedCategory === "coins" ? "active" : ""}`}
                   onClick={() => setSelectedCategory("coins")}
                 >
-                  <div className="service-circle-icon">🪙</div>
+                  <div className="service-circle-icon">ðŸª™</div>
                   <span className="service-circle-name">Xu Game</span>
                   <span className="service-circle-count">(51,041)</span>
                 </div>
@@ -3520,23 +3493,23 @@ function App() {
                   className={`service-switcher-circle ${selectedCategory === "boosting" ? "active" : ""}`}
                   onClick={() => setSelectedCategory("boosting")}
                 >
-                  <div className="service-circle-icon">🔥</div>
-                  <span className="service-circle-name">Cày thuê</span>
+                  <div className="service-circle-icon">ðŸ”¥</div>
+                  <span className="service-circle-name">CÃ y thuÃª</span>
                   <span className="service-circle-count">(36,528)</span>
                 </div>
                 <div
                   className={`service-switcher-circle ${selectedCategory === "cards" ? "active" : ""}`}
                   onClick={() => setSelectedCategory("cards")}
                 >
-                  <div className="service-circle-icon">💳</div>
-                  <span className="service-circle-name">Mã kích hoạt</span>
+                  <div className="service-circle-icon">ðŸ’³</div>
+                  <span className="service-circle-name">MÃ£ kÃ­ch hoáº¡t</span>
                   <span className="service-circle-count">(28)</span>
                 </div>
                 <div
                   className={`service-switcher-circle ${selectedCategory === "coaching" ? "active" : ""}`}
                   onClick={() => setSelectedCategory("coaching")}
                 >
-                  <div className="service-circle-icon">🎮</div>
+                  <div className="service-circle-icon">ðŸŽ®</div>
                   <span className="service-circle-name">Coaching</span>
                   <span className="service-circle-count">(16)</span>
                 </div>
@@ -3544,7 +3517,7 @@ function App() {
                   className={`service-switcher-circle ${selectedCategory === "gamepal" ? "active" : ""}`}
                   onClick={() => setSelectedCategory("gamepal")}
                 >
-                  <div className="service-circle-icon">👥</div>
+                  <div className="service-circle-icon">ðŸ‘¥</div>
                   <span className="service-circle-name">GamePal</span>
                   <span className="service-circle-count">(10)</span>
                 </div>
@@ -3552,16 +3525,16 @@ function App() {
                   className={`service-switcher-circle ${selectedCategory === "items" ? "active" : ""}`}
                   onClick={() => setSelectedCategory("items")}
                 >
-                  <div className="service-circle-icon">📦</div>
-                  <span className="service-circle-name">Vật phẩm</span>
+                  <div className="service-circle-icon">ðŸ“¦</div>
+                  <span className="service-circle-name">Váº­t pháº©m</span>
                   <span className="service-circle-count">(16,746)</span>
                 </div>
                 <div
                   className={`service-switcher-circle ${selectedCategory === "accounts" ? "active" : ""}`}
                   onClick={() => setSelectedCategory("accounts")}
                 >
-                  <div className="service-circle-icon">👤</div>
-                  <span className="service-circle-name">Tài khoản</span>
+                  <div className="service-circle-icon">ðŸ‘¤</div>
+                  <span className="service-circle-name">TÃ i khoáº£n</span>
                   <span className="service-circle-count">(2,272)</span>
                 </div>
               </div>
@@ -3583,7 +3556,7 @@ function App() {
                   </svg>
                   <input
                     type="text"
-                    placeholder="Nhập để lọc"
+                    placeholder="Nháº­p Ä‘á»ƒ lá»c"
                     className="local-search-input-field"
                     value={catalogSearchQuery}
                     onChange={(e) => setCatalogSearchQuery(e.target.value)}
@@ -3595,7 +3568,7 @@ function App() {
                     value={catalogRegionFilter}
                     onChange={(e) => setCatalogRegionFilter(e.target.value)}
                   >
-                    <option value="all">Khu vực (Tất cả)</option>
+                    <option value="all">Khu vá»±c (Táº¥t cáº£)</option>
                     <option value="Vietnam">Vietnam</option>
                     <option value="Global">Global</option>
                   </select>
@@ -3604,7 +3577,7 @@ function App() {
 
               {/* Popular orange tags */}
               <div className="popular-tags-row">
-                <span className="popular-tags-label">Tìm kiếm phổ biến:</span>
+                <span className="popular-tags-label">TÃ¬m kiáº¿m phá»• biáº¿n:</span>
                 <span
                   className="popular-tag-chip"
                   onClick={() => setCatalogSearchQuery("game time")}
@@ -3667,10 +3640,10 @@ function App() {
                   <>
                     <div className="catalog-results-header justify-between">
                       <span className="results-count-label">
-                        Khoảng {sortedCatalogItems.length} kết quả
+                        Khoáº£ng {sortedCatalogItems.length} káº¿t quáº£
                       </span>
                       <div className="sort-radio-group">
-                        <span className="sort-label">Sắp xếp theo:</span>
+                        <span className="sort-label">Sáº¯p xáº¿p theo:</span>
                         <label className="sort-radio-label">
                           <input
                             type="radio"
@@ -3680,7 +3653,7 @@ function App() {
                             onChange={() => setCatalogSortOption("recommended")}
                           />
                           <span className="radio-custom"></span>
-                          <span>Được đề xuất</span>
+                          <span>ÄÆ°á»£c Ä‘á» xuáº¥t</span>
                         </label>
                         <label className="sort-radio-label">
                           <input
@@ -3691,7 +3664,7 @@ function App() {
                             onChange={() => setCatalogSortOption("cheapest")}
                           />
                           <span className="radio-custom"></span>
-                          <span>Giá thấp nhất</span>
+                          <span>GiÃ¡ tháº¥p nháº¥t</span>
                         </label>
                       </div>
                     </div>
@@ -3707,10 +3680,10 @@ function App() {
                             <div className="package-region-row">
                               <span className="package-region-flag">
                                 {item.region === "Vietnam"
-                                  ? "🇻🇳"
+                                  ? "ðŸ‡»ðŸ‡³"
                                   : item.region === "Global"
-                                    ? "🌐"
-                                    : "🇺🇸"}
+                                    ? "ðŸŒ"
+                                    : "ðŸ‡ºðŸ‡¸"}
                               </span>
                               <span className="package-region-name">
                                 {item.region}
@@ -3719,10 +3692,10 @@ function App() {
                             <h4 className="package-card-title">{item.name}</h4>
                             <div className="package-card-footer justify-between">
                               <span className="package-offers-badge">
-                                {item.offers} ưu đãi
+                                {item.offers} Æ°u Ä‘Ã£i
                               </span>
                               <span className="package-price-text">
-                                từ {item.price.toLocaleString("vi-VN")}₫
+                                tá»« {item.price.toLocaleString("vi-VN")}â‚«
                               </span>
                             </div>
                           </div>
@@ -3730,10 +3703,10 @@ function App() {
                       </div>
                     ) : (
                       <div className="empty-catalog-results">
-                        <span className="empty-icon">📂</span>
-                        <h4>Không tìm thấy kết quả phù hợp!</h4>
+                        <span className="empty-icon">ðŸ“‚</span>
+                        <h4>KhÃ´ng tÃ¬m tháº¥y káº¿t quáº£ phÃ¹ há»£p!</h4>
                         <p>
-                          Vui lòng nhập lại tên gói nạp hoặc từ khóa lọc khác.
+                          Vui lÃ²ng nháº­p láº¡i tÃªn gÃ³i náº¡p hoáº·c tá»« khÃ³a lá»c khÃ¡c.
                         </p>
                         <button
                           className="btn btn-primary btn-sm"
@@ -3742,7 +3715,7 @@ function App() {
                             setCatalogRegionFilter("all");
                           }}
                         >
-                          Đặt lại bộ lọc
+                          Äáº·t láº¡i bá»™ lá»c
                         </button>
                       </div>
                     )}
@@ -3759,7 +3732,7 @@ function App() {
             <div className="container">
               {/* Breadcrumbs */}
               <div className="breadcrumbs">
-                <span onClick={() => pushRoute("home")}>Trang chủ</span>
+                <span onClick={() => pushRoute("home")}>Trang chá»§</span>
                 <span className="separator">&gt;</span>
                 <span onClick={() => navigateToCatalog(selectedGame)}>
                   {selectedGame.name}
@@ -3790,11 +3763,11 @@ function App() {
                       </h1>
                       <div className="item-meta-tags">
                         <span>
-                          Khu vực: <strong>{selectedItem.region}</strong>
+                          Khu vá»±c: <strong>{selectedItem.region}</strong>
                         </span>
-                        <span className="bullet">•</span>
+                        <span className="bullet">â€¢</span>
                         <span>
-                          Hình thức: <strong>Tự động gửi/Bàn giao ngay</strong>
+                          HÃ¬nh thá»©c: <strong>Tá»± Ä‘á»™ng gá»­i/BÃ n giao ngay</strong>
                         </span>
                       </div>
                     </div>
@@ -3803,7 +3776,7 @@ function App() {
                   {/* Switch Denomination Section */}
                   <div className="denom-selector-container">
                     <h4 className="container-title">
-                      Chọn các mệnh giá / gói dịch vụ khác
+                      Chá»n cÃ¡c má»‡nh giÃ¡ / gÃ³i dá»‹ch vá»¥ khÃ¡c
                     </h4>
                     <div className="denom-pill-grid">
                       {selectedGame.items.map((item) => (
@@ -3816,7 +3789,7 @@ function App() {
                         >
                           <div className="pill-name">{item.name}</div>
                           <div className="pill-price">
-                            {item.price.toLocaleString("vi-VN")}₫
+                            {item.price.toLocaleString("vi-VN")}â‚«
                           </div>
                         </div>
                       ))}
@@ -3830,13 +3803,13 @@ function App() {
                         className={`tab-item-link ${activeDetailTab === "description" ? "active" : ""}`}
                         onClick={() => setActiveDetailTab("description")}
                       >
-                        Mô tả sản phẩm
+                        MÃ´ táº£ sáº£n pháº©m
                       </span>
                       <span
                         className={`tab-item-link ${activeDetailTab === "reviews" ? "active" : ""}`}
                         onClick={() => setActiveDetailTab("reviews")}
                       >
-                        Đánh giá người mua (5★)
+                        ÄÃ¡nh giÃ¡ ngÆ°á»i mua (5â˜…)
                       </span>
                     </div>
 
@@ -3844,27 +3817,27 @@ function App() {
                       {activeDetailTab === "description" ? (
                         <div className="desc-content">
                           <p>
-                            Chào mừng bạn đến với đại lý phân phối chính thức
-                            của chúng tôi trên G2G Marketplace. Dưới đây là các
-                            thông tin quan trọng bạn cần nắm rõ:
+                            ChÃ o má»«ng báº¡n Ä‘áº¿n vá»›i Ä‘áº¡i lÃ½ phÃ¢n phá»‘i chÃ­nh thá»©c
+                            cá»§a chÃºng tÃ´i trÃªn G2G Marketplace. DÆ°á»›i Ä‘Ã¢y lÃ  cÃ¡c
+                            thÃ´ng tin quan trá»ng báº¡n cáº§n náº¯m rÃµ:
                           </p>
                           <ul>
                             <li>
-                              <strong>Bàn giao tự động:</strong> Sản phẩm được
-                              gửi trực tiếp qua hệ thống tin nhắn hoặc email
-                              liên kết của bạn ngay sau khi hoàn tất thanh toán.
+                              <strong>BÃ n giao tá»± Ä‘á»™ng:</strong> Sáº£n pháº©m Ä‘Æ°á»£c
+                              gá»­i trá»±c tiáº¿p qua há»‡ thá»‘ng tin nháº¯n hoáº·c email
+                              liÃªn káº¿t cá»§a báº¡n ngay sau khi hoÃ n táº¥t thanh toÃ¡n.
                             </li>
                             <li>
-                              <strong>Bảo hành GamerProtect:</strong> Bảo hiểm
-                              hoàn trả 100% số tiền nếu mã thẻ có lỗi hoặc tài
-                              khoản có vấn đề tranh chấp do lỗi từ người bán
-                              trong vòng 7 ngày.
+                              <strong>Báº£o hÃ nh GamerProtect:</strong> Báº£o hiá»ƒm
+                              hoÃ n tráº£ 100% sá»‘ tiá»n náº¿u mÃ£ tháº» cÃ³ lá»—i hoáº·c tÃ i
+                              khoáº£n cÃ³ váº¥n Ä‘á» tranh cháº¥p do lá»—i tá»« ngÆ°á»i bÃ¡n
+                              trong vÃ²ng 7 ngÃ y.
                             </li>
                             <li>
-                              <strong>Lưu ý:</strong> Vui lòng không tiết lộ
-                              thông tin mã nạp, mã OTP hoặc thông tin mật khẩu
-                              tài khoản cho bất kỳ ai khác ngoại trừ biểu mẫu
-                              giao dịch chính thức.
+                              <strong>LÆ°u Ã½:</strong> Vui lÃ²ng khÃ´ng tiáº¿t lá»™
+                              thÃ´ng tin mÃ£ náº¡p, mÃ£ OTP hoáº·c thÃ´ng tin máº­t kháº©u
+                              tÃ i khoáº£n cho báº¥t ká»³ ai khÃ¡c ngoáº¡i trá»« biá»ƒu máº«u
+                              giao dá»‹ch chÃ­nh thá»©c.
                             </li>
                           </ul>
                         </div>
@@ -3874,19 +3847,19 @@ function App() {
                             <div>
                               <div className="score-value">4.9 / 5</div>
                               <div className="stars-row">
-                                <span className="star-icon">★</span>
-                                <span className="star-icon">★</span>
-                                <span className="star-icon">★</span>
-                                <span className="star-icon">★</span>
-                                <span className="star-icon">★</span>
+                                <span className="star-icon">â˜…</span>
+                                <span className="star-icon">â˜…</span>
+                                <span className="star-icon">â˜…</span>
+                                <span className="star-icon">â˜…</span>
+                                <span className="star-icon">â˜…</span>
                               </div>
                               <span className="reviews-count-label">
-                                Phản hồi tích cực đạt 99.8% từ khách hàng
+                                Pháº£n há»“i tÃ­ch cá»±c Ä‘áº¡t 99.8% tá»« khÃ¡ch hÃ ng
                               </span>
                             </div>
                             <div className="reviews-recommend">
-                              🚀 <strong>Khuyên dùng:</strong> 99% khách hàng
-                              rất hài lòng về tốc độ bàn giao của người bán này.
+                              ðŸš€ <strong>KhuyÃªn dÃ¹ng:</strong> 99% khÃ¡ch hÃ ng
+                              ráº¥t hÃ i lÃ²ng vá» tá»‘c Ä‘á»™ bÃ n giao cá»§a ngÆ°á»i bÃ¡n nÃ y.
                             </div>
                           </div>
 
@@ -3906,7 +3879,7 @@ function App() {
                                         {Array.from({ length: rev.rating }).map(
                                           (_, i) => (
                                             <span key={i} className="star-icon">
-                                              ★
+                                              â˜…
                                             </span>
                                           ),
                                         )}
@@ -3944,7 +3917,7 @@ function App() {
                           ></span>
                         </div>
                         <div className="seller-box-rating">
-                          <span className="star-icon">★</span>
+                          <span className="star-icon">â˜…</span>
                           <strong>{selectedSeller.rating}</strong>
                           <span className="reviews-count">
                             ({selectedSeller.reviews.toLocaleString()} reviews)
@@ -3953,7 +3926,7 @@ function App() {
                         <div className="seller-badges">
                           <span className="badge-level">LV.99</span>
                           <span className="badge-rate">
-                            {selectedSeller.successRate} thành công
+                            {selectedSeller.successRate} thÃ nh cÃ´ng
                           </span>
                         </div>
                       </div>
@@ -3963,17 +3936,17 @@ function App() {
 
                     {/* Price & Quantity inputs */}
                     <div className="console-price-row">
-                      <span className="console-price-label">Đơn giá:</span>
+                      <span className="console-price-label">ÄÆ¡n giÃ¡:</span>
                       <span className="console-price-value">
                         {Math.floor(
                           selectedItem.price * selectedSeller.multiplier,
                         ).toLocaleString("vi-VN")}
-                        ₫
+                        â‚«
                       </span>
                     </div>
 
                     <div className="console-qty-row">
-                      <span className="console-qty-label">Số lượng mua:</span>
+                      <span className="console-qty-label">Sá»‘ lÆ°á»£ng mua:</span>
                       <div className="qty-picker">
                         <button
                           className="qty-btn"
@@ -4005,14 +3978,14 @@ function App() {
                     <div className="console-divider"></div>
 
                     <div className="console-total-row">
-                      <span>Tổng chi phí:</span>
+                      <span>Tá»•ng chi phÃ­:</span>
                       <span className="total-value">
                         {(
                           Math.floor(
                             selectedItem.price * selectedSeller.multiplier,
                           ) * detailQuantity
                         ).toLocaleString("vi-VN")}
-                        ₫
+                        â‚«
                       </span>
                     </div>
 
@@ -4047,7 +4020,7 @@ function App() {
                             detailQuantity,
                           )
                         }
-                        title="Thêm vào giỏ hàng"
+                        title="ThÃªm vÃ o giá» hÃ ng"
                       >
                         <svg
                           width="20"
@@ -4080,23 +4053,23 @@ function App() {
                         )
                       }
                     >
-                      Chat với người bán
+                      Chat vá»›i ngÆ°á»i bÃ¡n
                     </button>
                   </div>
 
                   {/* Trust check list */}
                   <div className="gamerprotect-widget">
                     <div className="gp-widget-header">
-                      <span className="gp-shield-icon">🛡️</span>
-                      <strong>Bảo vệ giao dịch GamerProtect</strong>
+                      <span className="gp-shield-icon">ðŸ›¡ï¸</span>
+                      <strong>Báº£o vá»‡ giao dá»‹ch GamerProtect</strong>
                     </div>
                     <ul className="gp-widget-list">
                       <li>
-                        Hệ thống ký quỹ giữ tiền an toàn cho đến khi xác nhận đã
-                        nhận sản phẩm sạch.
+                        Há»‡ thá»‘ng kÃ½ quá»¹ giá»¯ tiá»n an toÃ n cho Ä‘áº¿n khi xÃ¡c nháº­n Ä‘Ã£
+                        nháº­n sáº£n pháº©m sáº¡ch.
                       </li>
                       <li>
-                        Trọng tài hỗ trợ giải quyết tranh chấp 24/7 trực quan.
+                        Trá»ng tÃ i há»— trá»£ giáº£i quyáº¿t tranh cháº¥p 24/7 trá»±c quan.
                       </li>
                     </ul>
                   </div>
@@ -4106,18 +4079,18 @@ function App() {
               {/* Bottom compare other sellers table */}
               <div className="sellers-compare-box">
                 <h3 className="section-title">
-                  So sánh giá và ưu đãi từ các người bán khác
+                  So sÃ¡nh giÃ¡ vÃ  Æ°u Ä‘Ã£i tá»« cÃ¡c ngÆ°á»i bÃ¡n khÃ¡c
                 </h3>
                 <div className="compare-table-wrapper">
                   <table className="compare-table">
                     <thead>
                       <tr>
-                        <th>Người bán</th>
-                        <th>Tỷ lệ thành công</th>
-                        <th>Tốc độ giao hàng</th>
-                        <th>Kho hàng</th>
-                        <th>Đơn giá</th>
-                        <th style={{ textAlign: "right" }}>Hành động</th>
+                        <th>NgÆ°á»i bÃ¡n</th>
+                        <th>Tá»· lá»‡ thÃ nh cÃ´ng</th>
+                        <th>Tá»‘c Ä‘á»™ giao hÃ ng</th>
+                        <th>Kho hÃ ng</th>
+                        <th>ÄÆ¡n giÃ¡</th>
+                        <th style={{ textAlign: "right" }}>HÃ nh Ä‘á»™ng</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -4141,7 +4114,7 @@ function App() {
                                   {seller.name}
                                 </div>
                                 <div className="compare-seller-rating">
-                                  <span className="star-icon">★</span>
+                                  <span className="star-icon">â˜…</span>
                                   <span>{seller.rating}</span>
                                 </div>
                               </div>
@@ -4156,14 +4129,14 @@ function App() {
                             <span>{seller.speed}</span>
                           </td>
                           <td>
-                            <span>{seller.stock} sản phẩm</span>
+                            <span>{seller.stock} sáº£n pháº©m</span>
                           </td>
                           <td>
                             <span className="compare-price-val">
                               {Math.floor(
                                 selectedItem.price * seller.multiplier,
                               ).toLocaleString("vi-VN")}
-                              ₫
+                              â‚«
                             </span>
                           </td>
                           <td style={{ textAlign: "right" }}>
@@ -4180,7 +4153,7 @@ function App() {
                                   )
                                 }
                               >
-                                + Giỏ
+                                + Giá»
                               </button>
                               <button
                                 className="btn btn-primary btn-sm"
@@ -4215,14 +4188,14 @@ function App() {
         {currentView === "checkout" && (
           <section className="checkout-section">
             <div className="container">
-              <h2 className="section-title">Thanh Toán Giao Dịch G2G</h2>
+              <h2 className="section-title">Thanh ToÃ¡n Giao Dá»‹ch G2G</h2>
 
               <div className="checkout-grid">
                 {/* Left Column: Payments Selector & details */}
                 <div className="checkout-left-col">
                   <div className="checkout-card">
                     <h3 className="card-title">
-                      1. Chọn phương thức thanh toán
+                      1. Chá»n phÆ°Æ¡ng thá»©c thanh toÃ¡n
                     </h3>
 
                     <div className="payment-tabs-layout">
@@ -4231,29 +4204,29 @@ function App() {
                           className={`payment-tab-button ${activePaymentTab === "momo" ? "active" : ""}`}
                           onClick={() => setActivePaymentTab("momo")}
                         >
-                          <span className="payment-icon">📱</span>
-                          <span>Ví điện tử MoMo</span>
+                          <span className="payment-icon">ðŸ“±</span>
+                          <span>VÃ­ Ä‘iá»‡n tá»­ MoMo</span>
                         </div>
                         <div
                           className={`payment-tab-button ${activePaymentTab === "zalopay" ? "active" : ""}`}
                           onClick={() => setActivePaymentTab("zalopay")}
                         >
-                          <span className="payment-icon">💸</span>
-                          <span>Ví điện tử ZaloPay</span>
+                          <span className="payment-icon">ðŸ’¸</span>
+                          <span>VÃ­ Ä‘iá»‡n tá»­ ZaloPay</span>
                         </div>
                         <div
                           className={`payment-tab-button ${activePaymentTab === "banking" ? "active" : ""}`}
                           onClick={() => setActivePaymentTab("banking")}
                         >
-                          <span className="payment-icon">🏦</span>
-                          <span>Chuyển khoản NH Auto</span>
+                          <span className="payment-icon">ðŸ¦</span>
+                          <span>Chuyá»ƒn khoáº£n NH Auto</span>
                         </div>
                         <div
                           className={`payment-tab-button ${activePaymentTab === "card" ? "active" : ""}`}
                           onClick={() => setActivePaymentTab("card")}
                         >
-                          <span className="payment-icon">💳</span>
-                          <span>Thẻ Visa / Mastercard</span>
+                          <span className="payment-icon">ðŸ’³</span>
+                          <span>Tháº» Visa / Mastercard</span>
                         </div>
                       </div>
 
@@ -4271,35 +4244,34 @@ function App() {
                                 <div className="qr-matrix-dots"></div>
                               </div>
                               <div className="qr-amount">
-                                Tổng tiền:{" "}
+                                Tá»•ng tiá»n:{" "}
                                 {(getCartTotal() + 15000).toLocaleString(
                                   "vi-VN",
                                 )}
-                                ₫
+                                â‚«
                               </div>
                             </div>
                             <div className="qr-instructions">
-                              <h5>Quét Mã QR MoMo</h5>
+                              <h5>QuÃ©t MÃ£ QR MoMo</h5>
                               <ol>
                                 <li>
-                                  Mở ứng dụng MoMo trên điện thoại di động của
-                                  bạn.
+                                  Má»Ÿ á»©ng dá»¥ng MoMo trÃªn Ä‘iá»‡n thoáº¡i di Ä‘á»™ng cá»§a
+                                  báº¡n.
                                 </li>
                                 <li>
-                                  Chọn tính năng <strong>Quét mã</strong> và
-                                  quét mã QR ở bên cạnh.
+                                  Chá»n tÃ­nh nÄƒng <strong>QuÃ©t mÃ£</strong> vÃ 
+                                  quÃ©t mÃ£ QR á»Ÿ bÃªn cáº¡nh.
                                 </li>
                                 <li>
-                                  Nhập đúng mã nội dung thanh toán:{" "}
+                                  Nháº­p Ä‘Ãºng mÃ£ ná»™i dung thanh toÃ¡n:{" "}
                                   <strong>
-                                    G2G-
-                                    {Math.floor(10000 + Math.random() * 90000)}
+                                    {paymentCodes.momo}
                                   </strong>
                                 </li>
                                 <li>
-                                  Nhấn nút{" "}
-                                  <strong>Xác nhận đã chuyển tiền</strong> bên
-                                  dưới sau khi hoàn thành.
+                                  Nháº¥n nÃºt{" "}
+                                  <strong>XÃ¡c nháº­n Ä‘Ã£ chuyá»ƒn tiá»n</strong> bÃªn
+                                  dÆ°á»›i sau khi hoÃ n thÃ nh.
                                 </li>
                               </ol>
                             </div>
@@ -4338,25 +4310,24 @@ function App() {
                                 <div className="qr-matrix-dots"></div>
                               </div>
                               <div className="qr-amount">
-                                Tổng tiền:{" "}
+                                Tá»•ng tiá»n:{" "}
                                 {(getCartTotal() + 12000).toLocaleString(
                                   "vi-VN",
                                 )}
-                                ₫
+                                â‚«
                               </div>
                             </div>
                             <div className="qr-instructions">
-                              <h5>Quét Mã QR ZaloPay</h5>
+                              <h5>QuÃ©t MÃ£ QR ZaloPay</h5>
                               <ol>
                                 <li>
-                                  Mở ứng dụng ZaloPay hoặc Zalo trên điện thoại.
+                                  Má»Ÿ á»©ng dá»¥ng ZaloPay hoáº·c Zalo trÃªn Ä‘iá»‡n thoáº¡i.
                                 </li>
-                                <li>Quét mã QR để chuyển khoản nhanh.</li>
+                                <li>QuÃ©t mÃ£ QR Ä‘á»ƒ chuyá»ƒn khoáº£n nhanh.</li>
                                 <li>
-                                  Nội dung chuyển khoản mặc định:{" "}
+                                  Ná»™i dung chuyá»ƒn khoáº£n máº·c Ä‘á»‹nh:{" "}
                                   <strong>
-                                    G2G-ZALO-
-                                    {Math.floor(10000 + Math.random() * 90000)}
+                                    {paymentCodes.zalopay}
                                   </strong>
                                 </li>
                               </ol>
@@ -4366,41 +4337,41 @@ function App() {
 
                         {activePaymentTab === "banking" && (
                           <div className="banking-instructions">
-                            <h5>Thông tin tài khoản ngân hàng nhận</h5>
+                            <h5>ThÃ´ng tin tÃ i khoáº£n ngÃ¢n hÃ ng nháº­n</h5>
                             <div className="banking-details-grid">
                               <div className="banking-field">
-                                <span className="label">Ngân hàng:</span>
+                                <span className="label">NgÃ¢n hÃ ng:</span>
                                 <span className="value">
-                                  MB Bank (Ngân hàng Quân Đội)
+                                  MB Bank (NgÃ¢n hÃ ng QuÃ¢n Äá»™i)
                                 </span>
                               </div>
                               <div className="banking-field">
-                                <span className="label">Số tài khoản:</span>
+                                <span className="label">Sá»‘ tÃ i khoáº£n:</span>
                                 <span className="value copy-value">
                                   999920268888{" "}
                                   <span
                                     className="copy-icon"
                                     onClick={() =>
-                                      triggerToast("Đã copy số tài khoản!")
+                                      triggerToast("ÄÃ£ copy sá»‘ tÃ i khoáº£n!")
                                     }
                                   >
-                                    📋
+                                    ðŸ“‹
                                   </span>
                                 </span>
                               </div>
                               <div className="banking-field">
-                                <span className="label">Chủ tài khoản:</span>
+                                <span className="label">Chá»§ tÃ i khoáº£n:</span>
                                 <span className="value">
                                   CONG TY CONG NGHE G2G CLONE
                                 </span>
                               </div>
                               <div className="banking-field">
-                                <span className="label">Số tiền:</span>
+                                <span className="label">Sá»‘ tiá»n:</span>
                                 <span className="value">
                                   {(getCartTotal() + 10000).toLocaleString(
                                     "vi-VN",
                                   )}
-                                  ₫
+                                  â‚«
                                 </span>
                               </div>
                               <div
@@ -4408,7 +4379,7 @@ function App() {
                                 style={{ gridColumn: "span 2" }}
                               >
                                 <span className="label">
-                                  Nội dung chuyển tiền:
+                                  Ná»™i dung chuyá»ƒn tiá»n:
                                 </span>
                                 <span
                                   className="value copy-value"
@@ -4417,36 +4388,35 @@ function App() {
                                     fontWeight: "bold",
                                   }}
                                 >
-                                  G2G BANKING{" "}
-                                  {Math.floor(100000 + Math.random() * 900000)}
+                                  {paymentCodes.banking}
                                   <span
                                     className="copy-icon"
                                     onClick={() =>
-                                      triggerToast("Đã copy nội dung!")
+                                      triggerToast("ÄÃ£ copy ná»™i dung!")
                                     }
                                   >
-                                    📋
+                                    ðŸ“‹
                                   </span>
                                 </span>
                               </div>
                             </div>
                             <div className="note-alert">
-                              ⚠️ Hệ thống tự động cộng tiền trong vòng 10 giây
-                              sau khi nhận được chuyển khoản ngân hàng chính xác
-                              nội dung.
+                              âš ï¸ Há»‡ thá»‘ng tá»± Ä‘á»™ng cá»™ng tiá»n trong vÃ²ng 10 giÃ¢y
+                              sau khi nháº­n Ä‘Æ°á»£c chuyá»ƒn khoáº£n ngÃ¢n hÃ ng chÃ­nh xÃ¡c
+                              ná»™i dung.
                             </div>
                           </div>
                         )}
 
                         {activePaymentTab === "card" && (
                           <div className="card-form-container">
-                            <h5>Nhập thông tin thẻ quốc tế</h5>
+                            <h5>Nháº­p thÃ´ng tin tháº» quá»‘c táº¿</h5>
                             <div className="card-form-grid">
                               <div
                                 className="form-group"
                                 style={{ gridColumn: "span 2" }}
                               >
-                                <label>Số thẻ tín dụng / Ghi nợ</label>
+                                <label>Sá»‘ tháº» tÃ­n dá»¥ng / Ghi ná»£</label>
                                 <input
                                   type="text"
                                   className="form-control"
@@ -4463,7 +4433,7 @@ function App() {
                                 />
                               </div>
                               <div className="form-group">
-                                <label>Ngày hết hạn</label>
+                                <label>NgÃ y háº¿t háº¡n</label>
                                 <input
                                   type="text"
                                   className="form-control"
@@ -4476,11 +4446,11 @@ function App() {
                                 />
                               </div>
                               <div className="form-group">
-                                <label>Mã CVV / CVC</label>
+                                <label>MÃ£ CVV / CVC</label>
                                 <input
                                   type="password"
                                   className="form-control"
-                                  placeholder="•••"
+                                  placeholder="â€¢â€¢â€¢"
                                   value={cardCvv}
                                   onChange={(e) =>
                                     setCardCvv(
@@ -4503,7 +4473,7 @@ function App() {
                 {/* Right Column: Checkout Billing summary panel */}
                 <div className="checkout-right-col">
                   <div className="checkout-card">
-                    <h3 className="card-title">2. Tóm tắt đơn hàng</h3>
+                    <h3 className="card-title">2. TÃ³m táº¯t Ä‘Æ¡n hÃ ng</h3>
 
                     <div className="checkout-items-list">
                       {cart.map((item) => (
@@ -4520,15 +4490,15 @@ function App() {
                                 {item.itemName}
                               </div>
                               <div className="checkout-item-seller">
-                                Người bán: {item.sellerName}
+                                NgÆ°á»i bÃ¡n: {item.sellerName}
                               </div>
                               <div className="checkout-item-qty">
-                                Số lượng: {item.qty}
+                                Sá»‘ lÆ°á»£ng: {item.qty}
                               </div>
                             </div>
                           </div>
                           <span className="checkout-item-price">
-                            {(item.price * item.qty).toLocaleString("vi-VN")}₫
+                            {(item.price * item.qty).toLocaleString("vi-VN")}â‚«
                           </span>
                         </div>
                       ))}
@@ -4536,24 +4506,24 @@ function App() {
 
                     <div className="checkout-totals">
                       <div className="total-row-sub">
-                        <span>Giá trị sản phẩm:</span>
-                        <span>{getCartTotal().toLocaleString("vi-VN")}₫</span>
+                        <span>GiÃ¡ trá»‹ sáº£n pháº©m:</span>
+                        <span>{getCartTotal().toLocaleString("vi-VN")}â‚«</span>
                       </div>
                       <div className="total-row-sub">
-                        <span>Phí cổng thanh toán / Bảo hiểm:</span>
+                        <span>PhÃ­ cá»•ng thanh toÃ¡n / Báº£o hiá»ƒm:</span>
                         <span>
                           {activePaymentTab === "momo"
-                            ? "15.000₫"
+                            ? "15.000â‚«"
                             : activePaymentTab === "zalopay"
-                              ? "12.000₫"
+                              ? "12.000â‚«"
                               : activePaymentTab === "banking"
-                                ? "10.000₫"
-                                : "25.000₫"}
+                                ? "10.000â‚«"
+                                : "25.000â‚«"}
                         </span>
                       </div>
                       <div className="checkout-divider"></div>
                       <div className="total-row-main">
-                        <span>Tổng cộng:</span>
+                        <span>Tá»•ng cá»™ng:</span>
                         <span className="total-large">
                           {(
                             getCartTotal() +
@@ -4565,7 +4535,7 @@ function App() {
                                   ? 10000
                                   : 25000)
                           ).toLocaleString("vi-VN")}
-                          ₫
+                          â‚«
                         </span>
                       </div>
                     </div>
@@ -4577,8 +4547,8 @@ function App() {
                       <div className="checkout-agreement">
                         <input type="checkbox" id="checkoutAgree" required />
                         <label htmlFor="checkoutAgree">
-                          Tôi xác nhận các thông tin mua sản phẩm trên là chính
-                          xác và đồng ý với điều khoản thanh toán.
+                          TÃ´i xÃ¡c nháº­n cÃ¡c thÃ´ng tin mua sáº£n pháº©m trÃªn lÃ  chÃ­nh
+                          xÃ¡c vÃ  Ä‘á»“ng Ã½ vá»›i Ä‘iá»u khoáº£n thanh toÃ¡n.
                         </label>
                       </div>
                       <button
@@ -4593,8 +4563,8 @@ function App() {
                         disabled={checkoutProcessing || cart.length === 0}
                       >
                         {checkoutProcessing
-                          ? "Đang giao dịch..."
-                          : "Xác nhận đã thanh toán"}
+                          ? "Äang giao dá»‹ch..."
+                          : "XÃ¡c nháº­n Ä‘Ã£ thanh toÃ¡n"}
                       </button>
                     </form>
                   </div>
@@ -4609,32 +4579,32 @@ function App() {
           <section className="dashboard-section">
             <div className="container">
               <h2 className="section-title">
-                Quản Lý Giao Dịch &amp; Đơn Hàng
+                Quáº£n LÃ½ Giao Dá»‹ch &amp; ÄÆ¡n HÃ ng
               </h2>
 
               <div className="dashboard-layout">
                 {/* Tabs selection */}
                 <div className="dashboard-tabs">
                   <span className="tab-item active">
-                    Lịch sử đơn mua ({orders.length})
+                    Lá»‹ch sá»­ Ä‘Æ¡n mua ({orders.length})
                   </span>
                   <span
                     className="tab-item"
                     onClick={() =>
                       triggerToast(
-                        "Lịch sử đơn bán chỉ dành cho tài khoản đã xét duyệt là Người bán.",
+                        "Lá»‹ch sá»­ Ä‘Æ¡n bÃ¡n chá»‰ dÃ nh cho tÃ i khoáº£n Ä‘Ã£ xÃ©t duyá»‡t lÃ  NgÆ°á»i bÃ¡n.",
                       )
                     }
                   >
-                    Lịch sử đơn bán
+                    Lá»‹ch sá»­ Ä‘Æ¡n bÃ¡n
                   </span>
                   <span
                     className="tab-item"
                     onClick={() =>
-                      triggerToast("Hồ sơ cá nhân và Cài đặt bảo mật.")
+                      triggerToast("Há»“ sÆ¡ cÃ¡ nhÃ¢n vÃ  CÃ i Ä‘áº·t báº£o máº­t.")
                     }
                   >
-                    Cài đặt tài khoản
+                    CÃ i Ä‘áº·t tÃ i khoáº£n
                   </span>
                 </div>
 
@@ -4646,20 +4616,20 @@ function App() {
                         <div className="order-log-header">
                           <div className="order-log-meta">
                             <span className="order-id">
-                              Mã đơn: <strong>#{order.id}</strong>
+                              MÃ£ Ä‘Æ¡n: <strong>#{order.id}</strong>
                             </span>
                             <span className="order-date">
-                              Ngày mua: {order.date}
+                              NgÃ y mua: {order.date}
                             </span>
                           </div>
 
                           <span
                             className={`order-status-badge ${order.status}`}
                           >
-                            {order.status === "pending" && "⏳ Chờ giao hàng"}
+                            {order.status === "pending" && "â³ Chá» giao hÃ ng"}
                             {order.status === "delivering" &&
-                              "📦 Đang giao hàng"}
-                            {order.status === "completed" && "✓ Đã hoàn thành"}
+                              "ðŸ“¦ Äang giao hÃ ng"}
+                            {order.status === "completed" && "âœ“ ÄÃ£ hoÃ n thÃ nh"}
                           </span>
                         </div>
 
@@ -4673,22 +4643,22 @@ function App() {
                                 {order.itemName}
                               </h4>
                               <div className="order-item-seller">
-                                Người bán: <strong>{order.sellerName}</strong>
+                                NgÆ°á»i bÃ¡n: <strong>{order.sellerName}</strong>
                               </div>
                               <div className="order-item-qty">
-                                Số lượng: {order.qty} | Cổng thanh toán:{" "}
+                                Sá»‘ lÆ°á»£ng: {order.qty} | Cá»•ng thanh toÃ¡n:{" "}
                                 {order.paymentMethod}
                               </div>
                             </div>
                           </div>
 
                           <div className="order-log-price">
-                            <div className="price-label">Tổng thanh toán</div>
+                            <div className="price-label">Tá»•ng thanh toÃ¡n</div>
                             <div className="price-val">
                               {(order.price * order.qty).toLocaleString(
                                 "vi-VN",
                               )}
-                              ₫
+                              â‚«
                             </div>
                           </div>
                         </div>
@@ -4703,7 +4673,7 @@ function App() {
                               )
                             }
                           >
-                            💬 Trò chuyện với người bán
+                            ðŸ’¬ TrÃ² chuyá»‡n vá»›i ngÆ°á»i bÃ¡n
                           </button>
                           {order.status === "completed" ? (
                             <button
@@ -4713,10 +4683,10 @@ function App() {
                                 color: "var(--success)",
                               }}
                               onClick={() =>
-                                triggerToast("Cảm ơn bạn đã phản hồi tốt!")
+                                triggerToast("Cáº£m Æ¡n báº¡n Ä‘Ã£ pháº£n há»“i tá»‘t!")
                               }
                             >
-                              Đánh giá 5★
+                              ÄÃ¡nh giÃ¡ 5â˜…
                             </button>
                           ) : (
                             <button
@@ -4724,11 +4694,11 @@ function App() {
                               style={{ background: "#0284c7" }}
                               onClick={() =>
                                 triggerToast(
-                                  `Đơn hàng #${order.id} đang được hối thúc giao nhanh!`,
+                                  `ÄÆ¡n hÃ ng #${order.id} Ä‘ang Ä‘Æ°á»£c há»‘i thÃºc giao nhanh!`,
                                 )
                               }
                             >
-                              Hối thúc giao hàng
+                              Há»‘i thÃºc giao hÃ ng
                             </button>
                           )}
                         </div>
@@ -4736,12 +4706,12 @@ function App() {
                     ))
                   ) : (
                     <div className="empty-orders-view">
-                      <p>Bạn chưa thực hiện giao dịch nào.</p>
+                      <p>Báº¡n chÆ°a thá»±c hiá»‡n giao dá»‹ch nÃ o.</p>
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={() => pushRoute("home")}
                       >
-                        Khám phá chợ game ngay
+                        KhÃ¡m phÃ¡ chá»£ game ngay
                       </button>
                     </div>
                   )}
@@ -4759,9 +4729,9 @@ function App() {
             <div className="footer-brand">
               <h3>G2G CLONE</h3>
               <p>
-                G2G Clone là nền tảng mô phỏng chợ giao dịch trò chơi điện tử
-                trực tuyến an toàn hàng đầu. Giúp các game thủ kết nối mua bán
-                tiền tệ, tài khoản game, thẻ game nạp tự động nhanh chóng nhất.
+                G2G Clone lÃ  ná»n táº£ng mÃ´ phá»ng chá»£ giao dá»‹ch trÃ² chÆ¡i Ä‘iá»‡n tá»­
+                trá»±c tuyáº¿n an toÃ n hÃ ng Ä‘áº§u. GiÃºp cÃ¡c game thá»§ káº¿t ná»‘i mua bÃ¡n
+                tiá»n tá»‡, tÃ i khoáº£n game, tháº» game náº¡p tá»± Ä‘á»™ng nhanh chÃ³ng nháº¥t.
               </p>
               <div className="footer-socials">
                 <a
@@ -4803,10 +4773,10 @@ function App() {
                     href="#about"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Trang giới thiệu G2G");
+                      triggerToast("Trang giá»›i thiá»‡u G2G");
                     }}
                   >
-                    Về chúng tôi
+                    Vá» chÃºng tÃ´i
                   </a>
                 </li>
                 <li>
@@ -4814,10 +4784,10 @@ function App() {
                     href="#careers"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Cơ hội việc làm tại G2G");
+                      triggerToast("CÆ¡ há»™i viá»‡c lÃ m táº¡i G2G");
                     }}
                   >
-                    Tuyển dụng
+                    Tuyá»ƒn dá»¥ng
                   </a>
                 </li>
                 <li>
@@ -4835,17 +4805,17 @@ function App() {
             </div>
 
             <div className="footer-col">
-              <h5>Hỗ Trợ</h5>
+              <h5>Há»— Trá»£</h5>
               <ul>
                 <li>
                   <a
                     href="#help"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Trung tâm trợ giúp");
+                      triggerToast("Trung tÃ¢m trá»£ giÃºp");
                     }}
                   >
-                    Trung tâm hỗ trợ
+                    Trung tÃ¢m há»— trá»£
                   </a>
                 </li>
                 <li>
@@ -4853,7 +4823,7 @@ function App() {
                     href="#protect"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Chi tiết bảo hiểm GamerProtect");
+                      triggerToast("Chi tiáº¿t báº£o hiá»ƒm GamerProtect");
                     }}
                   >
                     GamerProtect
@@ -4864,27 +4834,27 @@ function App() {
                     href="#refund"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Chính sách hoàn tiền");
+                      triggerToast("ChÃ­nh sÃ¡ch hoÃ n tiá»n");
                     }}
                   >
-                    Chính sách hoàn tiền
+                    ChÃ­nh sÃ¡ch hoÃ n tiá»n
                   </a>
                 </li>
               </ul>
             </div>
 
             <div className="footer-col">
-              <h5>Người Bán</h5>
+              <h5>NgÆ°á»i BÃ¡n</h5>
               <ul>
                 <li>
                   <a
                     href="#rules"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Quy định bán hàng");
+                      triggerToast("Quy Ä‘á»‹nh bÃ¡n hÃ ng");
                     }}
                   >
-                    Quy tắc người bán
+                    Quy táº¯c ngÆ°á»i bÃ¡n
                   </a>
                 </li>
                 <li>
@@ -4892,10 +4862,10 @@ function App() {
                     href="#fees"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Bảng phí giao dịch chi tiết");
+                      triggerToast("Báº£ng phÃ­ giao dá»‹ch chi tiáº¿t");
                     }}
                   >
-                    Biểu phí giao dịch
+                    Biá»ƒu phÃ­ giao dá»‹ch
                   </a>
                 </li>
                 <li>
@@ -4913,17 +4883,17 @@ function App() {
             </div>
 
             <div className="footer-col">
-              <h5>Pháp Lý</h5>
+              <h5>PhÃ¡p LÃ½</h5>
               <ul>
                 <li>
                   <a
                     href="#terms"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Điều khoản dịch vụ");
+                      triggerToast("Äiá»u khoáº£n dá»‹ch vá»¥");
                     }}
                   >
-                    Điều khoản dịch vụ
+                    Äiá»u khoáº£n dá»‹ch vá»¥
                   </a>
                 </li>
                 <li>
@@ -4931,10 +4901,10 @@ function App() {
                     href="#privacy"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Chính sách bảo mật");
+                      triggerToast("ChÃ­nh sÃ¡ch báº£o máº­t");
                     }}
                   >
-                    Chính sách bảo mật
+                    ChÃ­nh sÃ¡ch báº£o máº­t
                   </a>
                 </li>
                 <li>
@@ -4942,7 +4912,7 @@ function App() {
                     href="#cookies"
                     onClick={(e) => {
                       e.preventDefault();
-                      triggerToast("Quy tắc cookie");
+                      triggerToast("Quy táº¯c cookie");
                     }}
                   >
                     Cookie Policy
@@ -4953,7 +4923,7 @@ function App() {
           </div>
 
           <div className="footer-payments-wrapper">
-            <h6 className="payments-title">Đối tác thanh toán được hỗ trợ</h6>
+            <h6 className="payments-title">Äá»‘i tÃ¡c thanh toÃ¡n Ä‘Æ°á»£c há»— trá»£</h6>
             <div className="payments-grid">
               <span className="payment-card-logo">PayPal</span>
               <span className="payment-card-logo">VISA</span>
@@ -4962,18 +4932,18 @@ function App() {
               <span className="payment-card-logo">Apple Pay</span>
               <span className="payment-card-logo">MoMo Pay</span>
               <span className="payment-card-logo">ZaloPay</span>
-              <span className="payment-card-logo">Chuyển khoản NH</span>
+              <span className="payment-card-logo">Chuyá»ƒn khoáº£n NH</span>
             </div>
           </div>
 
           <div className="footer-bottom">
             <div>
-              © 2026 G2G CLONE. Developed for educational replication. All
+              Â© 2026 G2G CLONE. Developed for educational replication. All
               rights reserved.
             </div>
             <div style={{ display: "flex", gap: "20px" }}>
-              <span>Tiếng Việt / VND</span>
-              <span>Bảo mật SSL Mã hóa 256-bit</span>
+              <span>Tiáº¿ng Viá»‡t / VND</span>
+              <span>Báº£o máº­t SSL MÃ£ hÃ³a 256-bit</span>
             </div>
           </div>
         </div>
@@ -4987,13 +4957,13 @@ function App() {
         <div className="cart-drawer" onClick={(e) => e.stopPropagation()}>
           <div className="cart-drawer-header">
             <h4>
-              Giỏ hàng của bạn ({cart.reduce((sum, i) => sum + i.qty, 0)})
+              Giá» hÃ ng cá»§a báº¡n ({cart.reduce((sum, i) => sum + i.qty, 0)})
             </h4>
             <span
               className="close-cart-btn"
               onClick={() => setIsCartOpen(false)}
             >
-              ×
+              Ã—
             </span>
           </div>
 
@@ -5014,14 +4984,14 @@ function App() {
                           {item.itemName}
                         </h5>
                         <div className="cart-item-vertical-seller">
-                          Người bán: {item.sellerName}
+                          NgÆ°á»i bÃ¡n: {item.sellerName}
                         </div>
                       </div>
                       <span
                         className="cart-item-vertical-remove"
                         onClick={() => removeCartItem(item.cartId)}
                       >
-                        🗑️
+                        ðŸ—‘ï¸
                       </span>
                     </div>
 
@@ -5042,7 +5012,7 @@ function App() {
                         </button>
                       </div>
                       <div className="cart-item-vertical-price">
-                        {(item.price * item.qty).toLocaleString("vi-VN")}₫
+                        {(item.price * item.qty).toLocaleString("vi-VN")}â‚«
                       </div>
                     </div>
                   </div>
@@ -5050,8 +5020,8 @@ function App() {
               </div>
             ) : (
               <div className="empty-cart-drawer">
-                <span className="empty-cart-icon">🛒</span>
-                <p>Giỏ hàng trống.</p>
+                <span className="empty-cart-icon">ðŸ›’</span>
+                <p>Giá» hÃ ng trá»‘ng.</p>
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
@@ -5059,7 +5029,7 @@ function App() {
                     pushRoute("home");
                   }}
                 >
-                  Tiếp tục mua hàng
+                  Tiáº¿p tá»¥c mua hÃ ng
                 </button>
               </div>
             )}
@@ -5068,9 +5038,9 @@ function App() {
           {cart.length > 0 && (
             <div className="cart-drawer-footer">
               <div className="cart-drawer-subtotal">
-                <span>Tổng chi phí sản phẩm:</span>
+                <span>Tá»•ng chi phÃ­ sáº£n pháº©m:</span>
                 <span className="price">
-                  {getCartTotal().toLocaleString("vi-VN")}₫
+                  {getCartTotal().toLocaleString("vi-VN")}â‚«
                 </span>
               </div>
               <button
@@ -5080,7 +5050,7 @@ function App() {
                   pushRoute("checkout");
                 }}
               >
-                Tiến hành thanh toán
+                Tiáº¿n hÃ nh thanh toÃ¡n
               </button>
             </div>
           )}
@@ -5092,10 +5062,10 @@ function App() {
         <div className="transaction-verification-overlay">
           <div className="verification-box">
             <div className="g2g-spinner"></div>
-            <h3>GamerProtect đang xử lý...</h3>
+            <h3>GamerProtect Ä‘ang xá»­ lÃ½...</h3>
             <p>
-              Vui lòng không tắt trình duyệt hoặc tải lại trang trong khi hệ
-              thống xác thực dòng tiền thanh toán an toàn.
+              Vui lÃ²ng khÃ´ng táº¯t trÃ¬nh duyá»‡t hoáº·c táº£i láº¡i trang trong khi há»‡
+              thá»‘ng xÃ¡c thá»±c dÃ²ng tiá»n thanh toÃ¡n an toÃ n.
             </p>
           </div>
         </div>
@@ -5112,10 +5082,10 @@ function App() {
                 <div className="icon-fix"></div>
               </div>
             </div>
-            <h3>Thanh toán giao dịch thành công!</h3>
+            <h3>Thanh toÃ¡n giao dá»‹ch thÃ nh cÃ´ng!</h3>
             <p>
-              Mã hóa SSL 256-bit bảo mật. Đơn hàng của bạn đã được gửi cho người
-              bán tiến hành giao hàng ngay.
+              MÃ£ hÃ³a SSL 256-bit báº£o máº­t. ÄÆ¡n hÃ ng cá»§a báº¡n Ä‘Ã£ Ä‘Æ°á»£c gá»­i cho ngÆ°á»i
+              bÃ¡n tiáº¿n hÃ nh giao hÃ ng ngay.
             </p>
           </div>
         </div>
@@ -5135,13 +5105,13 @@ function App() {
                 <span className="chat-partner-name">
                   {activeChatId
                     ? chats.find((c) => c.id === activeChatId)?.partnerName
-                    : "Chăm Sóc Khách Hàng"}
+                    : "ChÄƒm SÃ³c KhÃ¡ch HÃ ng"}
                 </span>
                 <div className="chat-partner-sub">
-                  Hỗ trợ:{" "}
+                  Há»— trá»£:{" "}
                   {activeChatId
                     ? chats.find((c) => c.id === activeChatId)?.game
-                    : "Chợ G2G"}
+                    : "Chá»£ G2G"}
                 </div>
               </div>
             </div>
@@ -5196,20 +5166,20 @@ function App() {
                   >
                     <input
                       type="text"
-                      placeholder="Nhập tin nhắn chat tại đây..."
+                      placeholder="Nháº­p tin nháº¯n chat táº¡i Ä‘Ã¢y..."
                       className="chat-input-field"
                       value={chatInputText}
                       onChange={(e) => setChatInputText(e.target.value)}
                     />
                     <button type="submit" className="chat-send-btn">
-                      Gửi
+                      Gá»­i
                     </button>
                   </form>
                 </>
               ) : (
                 <div className="chat-no-active">
-                  Chọn một cuộc trò chuyện để bắt đầu trao đổi chi tiết sản
-                  phẩm.
+                  Chá»n má»™t cuá»™c trÃ² chuyá»‡n Ä‘á»ƒ báº¯t Ä‘áº§u trao Ä‘á»•i chi tiáº¿t sáº£n
+                  pháº©m.
                 </div>
               )}
             </div>
@@ -5250,19 +5220,19 @@ function App() {
               boxShadow: "var(--card-shadow)",
             }}
           >
-            <span className="register-seller-kicker">Khu vực người bán</span>
+            <span className="register-seller-kicker">Khu vá»±c ngÆ°á»i bÃ¡n</span>
             <h1
               style={{
                 margin: "10px 0 12px",
                 fontFamily: "var(--font-heading)",
               }}
             >
-              Chỉ seller mới được đăng sản phẩm
+              Chá»‰ seller má»›i Ä‘Æ°á»£c Ä‘Äƒng sáº£n pháº©m
             </h1>
             <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
               {currentUser
-                ? "Tài khoản hiện tại chưa có role seller. Hãy đăng ký seller trước khi đăng sản phẩm."
-                : "Bạn cần đăng nhập trước khi vào trang đăng sản phẩm."}
+                ? "TÃ i khoáº£n hiá»‡n táº¡i chÆ°a cÃ³ role seller. HÃ£y Ä‘Äƒng kÃ½ seller trÆ°á»›c khi Ä‘Äƒng sáº£n pháº©m."
+                : "Báº¡n cáº§n Ä‘Äƒng nháº­p trÆ°á»›c khi vÃ o trang Ä‘Äƒng sáº£n pháº©m."}
             </p>
             <div
               style={{
@@ -5278,7 +5248,7 @@ function App() {
                   className="btn btn-primary"
                   onClick={() => pushRoute("register-seller")}
                 >
-                  Đăng ký seller
+                  ÄÄƒng kÃ½ seller
                 </button>
               ) : (
                 <button
@@ -5286,7 +5256,7 @@ function App() {
                   className="btn btn-primary"
                   onClick={() => setShowLogin(true)}
                 >
-                  Đăng nhập
+                  ÄÄƒng nháº­p
                 </button>
               )}
               <button
@@ -5294,7 +5264,7 @@ function App() {
                 className="btn btn-secondary"
                 onClick={() => pushRoute("home")}
               >
-                Về trang chủ
+                Vá» trang chá»§
               </button>
             </div>
           </div>
@@ -5306,7 +5276,7 @@ function App() {
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <span className="modal-close" onClick={() => setActiveModal(null)}>
-              ×
+              Ã—
             </span>
             <h3
               style={{
@@ -5315,7 +5285,7 @@ function App() {
                 fontWeight: 800,
               }}
             >
-              Đăng Ký Người Bán Game
+              ÄÄƒng KÃ½ NgÆ°á»i BÃ¡n Game
             </h3>
             <p
               style={{
@@ -5325,12 +5295,12 @@ function App() {
                 lineHeight: 1.5,
               }}
             >
-              Kiếm thêm thu nhập từ việc bán xu game, tài khoản dư hoặc cày thuê
-              game. Quá trình xét duyệt miễn phí và nhanh chóng!
+              Kiáº¿m thÃªm thu nháº­p tá»« viá»‡c bÃ¡n xu game, tÃ i khoáº£n dÆ° hoáº·c cÃ y thuÃª
+              game. QuÃ¡ trÃ¬nh xÃ©t duyá»‡t miá»…n phÃ­ vÃ  nhanh chÃ³ng!
             </p>
             <form onSubmit={handleSellerSubmit}>
               <div className="form-group">
-                <label>Trò chơi muốn giao dịch chính</label>
+                <label>TrÃ² chÆ¡i muá»‘n giao dá»‹ch chÃ­nh</label>
                 <select
                   className="form-control"
                   value={sellerGame}
@@ -5344,11 +5314,11 @@ function App() {
               </div>
 
               <div className="form-group">
-                <label>Mô tả ngắn kinh nghiệm &amp; sản phẩm bán</label>
+                <label>MÃ´ táº£ ngáº¯n kinh nghiá»‡m &amp; sáº£n pháº©m bÃ¡n</label>
                 <textarea
                   className="form-control"
                   rows="3"
-                  placeholder="Ví dụ: Tôi có nguồn Robux sạch dồi dào, hoặc có đội cày thuê Liên Quân uy tín..."
+                  placeholder="VÃ­ dá»¥: TÃ´i cÃ³ nguá»“n Robux sáº¡ch dá»“i dÃ o, hoáº·c cÃ³ Ä‘á»™i cÃ y thuÃª LiÃªn QuÃ¢n uy tÃ­n..."
                   value={sellerExperience}
                   onChange={(e) => setSellerExperience(e.target.value)}
                   style={{ resize: "vertical" }}
@@ -5379,8 +5349,8 @@ function App() {
                     cursor: "pointer",
                   }}
                 >
-                  Tôi cam kết cung cấp sản phẩm sạch và tuân thủ quy định giao
-                  dịch của G2G.
+                  TÃ´i cam káº¿t cung cáº¥p sáº£n pháº©m sáº¡ch vÃ  tuÃ¢n thá»§ quy Ä‘á»‹nh giao
+                  dá»‹ch cá»§a G2G.
                 </label>
               </div>
 
@@ -5389,7 +5359,7 @@ function App() {
                 className="btn btn-primary"
                 style={{ width: "100%", padding: "12px" }}
               >
-                Gửi Hồ Sơ Xét Duyệt
+                Gá»­i Há»“ SÆ¡ XÃ©t Duyá»‡t
               </button>
             </form>
           </div>

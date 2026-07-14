@@ -1569,35 +1569,37 @@ def purchase(user):
     if not all([user_id, product_id, quantity]) or quantity <= 0:
         return jsonify({"error": "Dữ liệu không hợp lệ"}), 400
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
 
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-        # 1. Kiểm tra sản phẩm và lấy giá
-        cursor.execute("SELECT Price, Quantity, SellerId FROM Products WHERE Id = ? AND ISNULL(Status, 'active') = 'active'", (product_id,))
+        cursor.execute("""
+            SELECT Price, Quantity, SellerId
+            FROM Products WITH (UPDLOCK, ROWLOCK)
+            WHERE Id = ? AND ISNULL(Status, 'active') = 'active'
+        """, (product_id,))
         product = cursor.fetchone()
-        # 2. Kiểm tra người dùng và số dư
-        cursor.execute("SELECT Balance FROM Users WHERE Id = ?", (user_id,))
-        user = cursor.fetchone()
+        cursor.execute("SELECT Balance FROM Users WITH (UPDLOCK, ROWLOCK) WHERE Id = ?", (user_id,))
+        buyer = cursor.fetchone()
 
         if not product:
             return jsonify({"error": "Sản phẩm không tồn tại"}), 404
-        if not user:
+        if not buyer:
             return jsonify({"error": "Người dùng không tồn tại"}), 404
 
         price, stock, seller_id = product
-        balance = user[0]
+        balance = buyer[0]
         total_cost = price * quantity
 
-        # 3. Kiểm tra logic nghiệp vụ
         if seller_id == user_id:
             return jsonify({"error": "Không thể mua sản phẩm của chính mình"}), 400
         if stock < quantity:
             return jsonify({"error": "Không đủ số lượng hàng"}), 400
         if balance < total_cost:
             return jsonify({"error": "Số dư không đủ"}), 400
-        # 4. Thực hiện cập nhật
+
         cursor.execute(
             "UPDATE Products SET Quantity = Quantity - ? WHERE Id = ? AND Quantity >= ? AND ISNULL(Status, 'active') = 'active'",
             (quantity, product_id, quantity)
@@ -1612,17 +1614,62 @@ def purchase(user):
         if cursor.rowcount == 0:
             conn.rollback()
             return jsonify({"error": "Số dư không đủ"}), 400
-        cursor.execute("INSERT INTO Transactions (UserId, ProductId, Quantity, TotalPrice) VALUES (?, ?, ?, ?)", 
-                       (user_id, product_id, quantity, total_cost))
+
+        cursor.execute(
+            "UPDATE Users SET Balance = Balance + ? WHERE Id = ?",
+            (total_cost, seller_id)
+        )
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return jsonify({"error": "Không tìm thấy người bán"}), 404
+
+        cursor.execute("""
+            INSERT INTO Orders (UserId, SellerId, TotalPrice, Status, CreatedAt)
+            OUTPUT INSERTED.Id
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, seller_id, total_cost, "paid", datetime.now()))
+        order_id = cursor.fetchone()[0]
+
+        cursor.execute("""
+            INSERT INTO OrderItems (OrderId, ProductId, Quantity, UnitPrice, TotalPrice)
+            VALUES (?, ?, ?, ?, ?)
+        """, (order_id, product_id, quantity, price, total_cost))
+
+        cursor.execute(
+            "INSERT INTO Transactions (UserId, ProductId, Quantity, TotalPrice) VALUES (?, ?, ?, ?)",
+            (user_id, product_id, quantity, total_cost)
+        )
+
+        cursor.execute("""
+            INSERT INTO BalanceAuditLogs (UserId, Amount, Action, ReferenceType, ReferenceId, CreatedBy, CreatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, -total_cost, "purchase_paid", "Orders", order_id, user_id, datetime.now()))
+        cursor.execute("""
+            INSERT INTO BalanceAuditLogs (UserId, Amount, Action, ReferenceType, ReferenceId, CreatedBy, CreatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (seller_id, total_cost, "sale_received", "Orders", order_id, user_id, datetime.now()))
+
         conn.commit()
 
-        return jsonify({"message": "Mua hàng thành công!"}), 200
+        return jsonify({
+            "message": "Mua hàng thành công!",
+            "order": {
+                "id": order_id,
+                "productId": product_id,
+                "quantity": quantity,
+                "totalPrice": float(total_cost),
+                "sellerId": seller_id,
+            }
+        }), 200
         
     except Exception:
-        conn.rollback()
+        if conn:
+            conn.rollback()
+        logger.exception("purchase_failed")
         return jsonify({"error": "Lỗi máy chủ"}), 500
     finally:
-        conn.close()     
+        if conn:
+            conn.close()     
 if __name__ == "__main__":
     debug_enabled = os.environ.get("FLASK_ENV") == "development" or os.environ.get("FLASK_DEBUG") == "1"
     app.run(
