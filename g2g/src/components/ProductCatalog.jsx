@@ -52,6 +52,53 @@ export default function ProductCatalog({
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
 
+  const getItemCategory = (item) => {
+    if (item.category) return item.category;
+    const name = item.name.toLowerCase();
+    if (name.includes('code') || name.includes('thẻ') || name.includes('gift') || name.includes('card') || name.includes('sò') || name.includes('mã')) return 'cards';
+    if (name.includes('acc') || name.includes('tài khoản') || name.includes('rank') || name.includes('nick')) return 'accounts';
+    if (name.includes('cày') || name.includes('boosting') || name.includes('lên rank')) return 'boosting';
+    if (name.includes('coaching') || name.includes('dạy') || name.includes('hướng dẫn')) return 'coaching';
+    if (name.includes('gamepal') || name.includes('bạn chơi') || name.includes('chơi cùng')) return 'gamepal';
+    if (name.includes('vật phẩm') || name.includes('skin') || name.includes('gold') || name.includes('items') || name.includes('gói nạp gold') || name.includes('orb')) return 'items';
+    
+    // Check fallback category from the game database
+    if (item.gameId) {
+      const matchedGame = MOCK_GAMES.find((g) => g.id === item.gameId);
+      if (matchedGame && matchedGame.category) return matchedGame.category;
+    }
+    if (selectedGame && selectedGame.category) return selectedGame.category;
+    return 'coins';
+  };
+
+  const getCategoryOffersCount = (categoryKey) => {
+    if (!selectedGame) return 0;
+
+    const sellerItemsForGame = sellerListings.filter(
+      (sl) => sl.gameId === selectedGame.id
+    ).map((sl) => ({
+      id: sl.id,
+      name: sl.name,
+      price: sl.price,
+      badge: sl.badge || 'Người Bán Mới',
+      region: sl.region || 'Global',
+      offers: 1,
+      category: sl.category,
+      stock: sl.stock,
+      sellerName: sl.sellerName || 'Người Bán',
+      isSellerListing: true,
+    }));
+
+    const allGameItems = [
+      ...sellerItemsForGame,
+      ...selectedGame.items.filter(item => !sellerItemsForGame.some(sl => sl.id === item.id))
+    ];
+
+    return allGameItems
+      .filter(item => getItemCategory(item) === categoryKey)
+      .reduce((sum, item) => sum + (item.offers || 1), 0);
+  };
+
   return (
     <>
       {/* Category Catalog Page View (New Category listings navigation router) */}
@@ -308,7 +355,7 @@ export default function ProductCatalog({
                       }));
                     return {
                       ...game,
-                      items: [...extraItems, ...game.items],
+                      items: [...extraItems, ...game.items.filter(item => !extraItems.some(ei => ei.id === item.id))],
                     };
                   });
 
@@ -488,7 +535,7 @@ export default function ProductCatalog({
               >
                 <div className="service-circle-icon">🪙</div>
                 <span className="service-circle-name">Xu Game</span>
-                <span className="service-circle-count">(51,041)</span>
+                <span className="service-circle-count">({getCategoryOffersCount('coins').toLocaleString()})</span>
               </div>
               <div
                 className={`service-switcher-circle ${selectedCategory === 'boosting' ? 'active' : ''}`}
@@ -496,7 +543,7 @@ export default function ProductCatalog({
               >
                 <div className="service-circle-icon">🔥</div>
                 <span className="service-circle-name">Cày thuê</span>
-                <span className="service-circle-count">(36,528)</span>
+                <span className="service-circle-count">({getCategoryOffersCount('boosting').toLocaleString()})</span>
               </div>
               <div
                 className={`service-switcher-circle ${selectedCategory === 'cards' ? 'active' : ''}`}
@@ -504,7 +551,7 @@ export default function ProductCatalog({
               >
                 <div className="service-circle-icon">💳</div>
                 <span className="service-circle-name">Mã kích hoạt</span>
-                <span className="service-circle-count">(28)</span>
+                <span className="service-circle-count">({getCategoryOffersCount('cards').toLocaleString()})</span>
               </div>
               <div
                 className={`service-switcher-circle ${selectedCategory === 'coaching' ? 'active' : ''}`}
@@ -512,7 +559,7 @@ export default function ProductCatalog({
               >
                 <div className="service-circle-icon">🎮</div>
                 <span className="service-circle-name">Coaching</span>
-                <span className="service-circle-count">(16)</span>
+                <span className="service-circle-count">({getCategoryOffersCount('coaching').toLocaleString()})</span>
               </div>
               <div
                 className={`service-switcher-circle ${selectedCategory === 'gamepal' ? 'active' : ''}`}
@@ -520,7 +567,7 @@ export default function ProductCatalog({
               >
                 <div className="service-circle-icon">👥</div>
                 <span className="service-circle-name">GamePal</span>
-                <span className="service-circle-count">(10)</span>
+                <span className="service-circle-count">({getCategoryOffersCount('gamepal').toLocaleString()})</span>
               </div>
               <div
                 className={`service-switcher-circle ${selectedCategory === 'items' ? 'active' : ''}`}
@@ -528,7 +575,7 @@ export default function ProductCatalog({
               >
                 <div className="service-circle-icon">📦</div>
                 <span className="service-circle-name">Vật phẩm</span>
-                <span className="service-circle-count">(16,746)</span>
+                <span className="service-circle-count">({getCategoryOffersCount('items').toLocaleString()})</span>
               </div>
               <div
                 className={`service-switcher-circle ${selectedCategory === 'accounts' ? 'active' : ''}`}
@@ -536,7 +583,7 @@ export default function ProductCatalog({
               >
                 <div className="service-circle-icon">👤</div>
                 <span className="service-circle-name">Tài khoản</span>
-                <span className="service-circle-count">(2,272)</span>
+                <span className="service-circle-count">({getCategoryOffersCount('accounts').toLocaleString()})</span>
               </div>
             </div>
 
@@ -601,18 +648,6 @@ export default function ProductCatalog({
 
             {/* Packages Lists & Sorting */}
             {(() => {
-              const getItemCategory = (item) => {
-                if (item.category) return item.category;
-                const name = item.name.toLowerCase();
-                if (name.includes('code') || name.includes('thẻ') || name.includes('gift') || name.includes('card') || name.includes('sò') || name.includes('mã')) return 'cards';
-                if (name.includes('acc') || name.includes('tài khoản') || name.includes('rank') || name.includes('nick')) return 'accounts';
-                if (name.includes('cày') || name.includes('boosting') || name.includes('lên rank')) return 'boosting';
-                if (name.includes('coaching') || name.includes('dạy') || name.includes('hướng dẫn')) return 'coaching';
-                if (name.includes('gamepal') || name.includes('bạn chơi') || name.includes('chơi cùng')) return 'gamepal';
-                if (name.includes('vật phẩm') || name.includes('skin') || name.includes('gold') || name.includes('items') || name.includes('gói nạp gold') || name.includes('orb')) return 'items';
-                return 'coins';
-              };
-
               // Merge sellerListings for this game into items for buyer view
               const sellerItemsForGame = sellerListings.filter(
                 (sl) => sl.gameId === selectedGame.id
@@ -631,7 +666,7 @@ export default function ProductCatalog({
 
               const allItems = [
                 ...sellerItemsForGame,
-                ...selectedGame.items,
+                ...selectedGame.items.filter(item => !sellerItemsForGame.some(sl => sl.id === item.id)),
               ];
 
               const filteredCatalogItems = allItems.filter((item) => {
@@ -693,7 +728,19 @@ export default function ProductCatalog({
                         <div
                           key={item.id}
                           className="catalog-package-card"
-                          onClick={() => navigateToDetail(selectedGame, item)}
+                          onClick={() => {
+                            if (item.isSellerListing) {
+                              navigateToDetail(selectedGame, item, {
+                                name: item.sellerName || 'Người Bán',
+                                rating: '5.0',
+                                reviews: 1,
+                                successRate: '100%',
+                                multiplier: 1
+                              });
+                            } else {
+                              navigateToDetail(selectedGame, item);
+                            }
+                          }}
                           style={item.isSellerListing ? { border: '1px solid rgba(251,191,36,0.35)', boxShadow: '0 0 0 1px rgba(251,191,36,0.1) inset' } : {}}
                         >
                           <div className="package-region-row">
@@ -796,16 +843,48 @@ export default function ProductCatalog({
                 <div className="denom-selector-container">
                   <h4 className="container-title">Chọn các mệnh giá / gói dịch vụ khác</h4>
                   <div className="denom-pill-grid">
-                    {selectedGame.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`denom-pill ${selectedItem.id === item.id ? 'active' : ''}`}
-                        onClick={() => navigateToDetail(selectedGame, item, selectedSeller)}
-                      >
-                        <div className="pill-name">{item.name}</div>
-                        <div className="pill-price">{item.price.toLocaleString('vi-VN')}₫</div>
-                      </div>
-                    ))}
+                    {(() => {
+                      const sellerItemsForGame = sellerListings.filter(
+                        (sl) => sl.gameId === selectedGame.id
+                      ).map((sl) => ({
+                        id: sl.id,
+                        name: sl.name,
+                        price: sl.price,
+                        badge: sl.badge || 'Người Bán Mới',
+                        region: sl.region || 'Global',
+                        offers: 1,
+                        category: sl.category,
+                        stock: sl.stock,
+                        sellerName: sl.sellerName || 'Người Bán',
+                        isSellerListing: true,
+                      }));
+                      const allGameItems = [
+                        ...sellerItemsForGame,
+                        ...selectedGame.items.filter(item => !sellerItemsForGame.some(sl => sl.id === item.id))
+                      ];
+                      return allGameItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`denom-pill ${selectedItem.id === item.id ? 'active' : ''}`}
+                          onClick={() => {
+                            if (item.isSellerListing) {
+                              navigateToDetail(selectedGame, item, {
+                                name: item.sellerName || 'Người Bán',
+                                rating: '5.0',
+                                reviews: 1,
+                                successRate: '100%',
+                                multiplier: 1
+                              });
+                            } else {
+                              navigateToDetail(selectedGame, item);
+                            }
+                          }}
+                        >
+                          <div className="pill-name">{item.name}</div>
+                          <div className="pill-price">{item.price.toLocaleString('vi-VN')}₫</div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
 

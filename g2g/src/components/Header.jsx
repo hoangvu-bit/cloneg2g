@@ -31,10 +31,37 @@ export default function Header({
   const [expandedSubmenu, setExpandedSubmenu] = React.useState(null); // 'selling' | 'settings' | null
   const dropdownRef = React.useRef(null);
 
+  const [notifications, setNotifications] = React.useState([]);
+  const [isNotificationOpen, setIsNotificationOpen] = React.useState(false);
+  const notificationDropdownRef = React.useRef(null);
+
+  const loadNotifications = () => {
+    if (currentUser) {
+      const key = `g2g_notifications_${currentUser.name}`;
+      try {
+        const saved = localStorage.getItem(key);
+        setNotifications(saved ? JSON.parse(saved) : []);
+      } catch (e) {
+        setNotifications([]);
+      }
+    } else {
+      setNotifications([]);
+    }
+  };
+
+  React.useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 3000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
   React.useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsUserMenuOpen(false);
+      }
+      if (notificationDropdownRef.current && !notificationDropdownRef.current.contains(event.target)) {
+        setIsNotificationOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -207,6 +234,16 @@ export default function Header({
                   <span>{userWalletBalance.toLocaleString('vi-VN')}₫</span>
                 </div>
 
+                {currentUser && currentUser.role === 'admin' && (
+                  <button 
+                    className="btn btn-primary btn-sm" 
+                    style={{ background: 'linear-gradient(135deg, #ff3333 0%, #cc0000 100%)', border: 'none', marginRight: '10px', height: '36px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}
+                    onClick={() => pushRoute('admin-dashboard')}
+                  >
+                    👑 Quản Trị
+                  </button>
+                )}
+
                 {/* Mua sắm ngay button */}
                 <button className="buy-now-header-btn" onClick={() => pushRoute('home')}>
                   Mua sắm ngay
@@ -232,16 +269,98 @@ export default function Header({
                 </button>
 
                 {/* Notification Bell Trigger */}
-                <button className="header-icon-circle-btn" title="Thông báo">
-                  <svg
-                    width="18"
-                    height="18"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
+                <div style={{ position: 'relative' }} ref={notificationDropdownRef}>
+                  <button 
+                    className="header-icon-circle-btn" 
+                    title="Thông báo"
+                    onClick={() => {
+                      setIsNotificationOpen(!isNotificationOpen);
+                      if (currentUser && notifications.some(n => n.unread)) {
+                        const updated = notifications.map(n => ({ ...n, unread: false }));
+                        setNotifications(updated);
+                        localStorage.setItem(`g2g_notifications_${currentUser.name}`, JSON.stringify(updated));
+                      }
+                    }}
                   >
-                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
-                  </svg>
-                </button>
+                    <svg
+                      width="18"
+                      height="18"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
+                    </svg>
+                    {currentUser && notifications.some(n => n.unread) && (
+                      <span className="notification-badge" style={{
+                        position: 'absolute', top: '2px', right: '2px',
+                        backgroundColor: '#ff3333', color: '#ffffff',
+                        borderRadius: '50%', width: '8px', height: '8px',
+                        display: 'block'
+                      }}></span>
+                    )}
+                  </button>
+                  
+                  {isNotificationOpen && (
+                    <div className="notifications-dropdown-menu" style={{
+                      position: 'absolute', top: '48px', right: '0',
+                      width: '320px', backgroundColor: '#17181c',
+                      border: '1px solid #2d2f34', borderRadius: '8px',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 1000,
+                      padding: '12px 0', fontFamily: 'inherit'
+                    }}>
+                      <div style={{
+                        padding: '0 16px 8px', borderBottom: '1px solid #2d2f34',
+                        fontWeight: 'bold', display: 'flex', justifyContent: 'space-between',
+                        alignItems: 'center', fontSize: '13px', color: '#ffffff'
+                      }}>
+                        <span>Thông báo của bạn</span>
+                        {currentUser && notifications.length > 0 && (
+                          <span 
+                            style={{ fontSize: '11px', color: '#ff3333', cursor: 'pointer' }}
+                            onClick={() => {
+                              localStorage.setItem(`g2g_notifications_${currentUser.name}`, JSON.stringify([]));
+                              setNotifications([]);
+                            }}
+                          >
+                            Xóa tất cả
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                        {!currentUser ? (
+                          <div style={{ padding: '20px', textAlign: 'center', color: '#72767d', fontSize: '12px' }}>
+                            Vui lòng đăng nhập để xem thông báo.
+                          </div>
+                        ) : notifications.length === 0 ? (
+                          <div style={{ padding: '20px', textAlign: 'center', color: '#72767d', fontSize: '12px' }}>
+                            Không có thông báo nào.
+                          </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div 
+                              key={n.id} 
+                              style={{
+                                padding: '12px 16px', borderBottom: '1px solid #1f2125',
+                                backgroundColor: n.unread ? 'rgba(255, 51, 51, 0.05)' : 'transparent',
+                                textAlign: 'left'
+                              }}
+                            >
+                              <div style={{ fontWeight: 'bold', fontSize: '12.5px', color: '#ffffff', marginBottom: '4px' }}>
+                                {n.title}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.4' }}>
+                                {n.message}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#72767d', marginTop: '6px' }}>
+                                {n.date}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Profile Avatar Button */}
                 <div 
@@ -314,6 +433,15 @@ export default function Header({
 
                     {/* Menu Items List */}
                     <ul className="dropdown-menu-list">
+                      {currentUser && currentUser.role === 'admin' && (
+                        <li 
+                          className="dropdown-menu-item" 
+                          style={{ borderBottom: '1px solid rgba(255, 51, 51, 0.2)', backgroundColor: 'rgba(255, 51, 51, 0.05)' }} 
+                          onClick={() => { setIsUserMenuOpen(false); pushRoute('admin-dashboard'); }}
+                        >
+                          <span style={{ color: '#ff3333', fontWeight: 'bold' }}>👑 Trang Quản Trị (Admin)</span>
+                        </li>
+                      )}
                       <li className="dropdown-menu-item" onClick={() => { setIsUserMenuOpen(false); pushRoute('orders'); }}>
                         <span>Tổng quan</span>
                       </li>

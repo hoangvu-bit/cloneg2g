@@ -85,9 +85,8 @@ export async function getProductById(id) {
         textIcon = 'LoL';
     }
 
-    // Determine category based on product ID to match the cycling in fetchAndMapProducts
-    const categoriesCycle = ['coins', 'boosting', 'cards', 'coaching', 'gamepal', 'items', 'accounts'];
-    const itemCategory = categoriesCycle[p.id % categoriesCycle.length];
+    // Use the primary category of the game instead of cycling
+    const itemCategory = primaryCategory || 'coins';
 
     let customName = p.title;
     if (itemCategory === 'coins') {
@@ -214,9 +213,8 @@ export async function fetchAndMapProducts() {
           }
 
           game.items = matching.map((p, idx) => {
-            // Cycle subcategories: coins, boosting, cards, coaching, gamepal, items, accounts
-            const categoriesCycle = ['coins', 'boosting', 'cards', 'coaching', 'gamepal', 'items', 'accounts'];
-            const itemCategory = categoriesCycle[idx % categoriesCycle.length];
+            // Map items directly to the game's category instead of cycling, ensuring correct subcategory placement
+            const itemCategory = game.category || 'coins';
 
             let customName = p.title;
             if (itemCategory === 'coins') {

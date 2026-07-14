@@ -22,6 +22,7 @@ import Orders from './components/Orders';
 import ChatDrawer from './components/ChatDrawer';
 import Modals from './components/Modals';
 import SellerLanding from './components/SellerLanding';
+import AdminDashboard from './components/AdminDashboard';
 
 function App() {
   const [forceUpdate, setForceUpdate] = useState(0);
@@ -33,10 +34,10 @@ function App() {
         // Clear static list and replace with dynamic API data
         MOCK_GAMES.length = 0;
         apiGames.forEach(game => MOCK_GAMES.push(game));
-        
+
         // Reset category filter selections
         setFilterSelectedGames(MOCK_GAMES.map(g => g.id));
-        
+
         // Trigger UI re-render
         setForceUpdate(prev => prev + 1);
       }
@@ -80,31 +81,7 @@ function App() {
   const [activePaymentTab, setActivePaymentTab] = useState('momo');
   const [checkoutProcessing, setCheckoutProcessing] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
-  const [orders, setOrders] = useState([
-
-    {
-      id: 'G2G-583019',
-      date: '01/07/2026',
-      gameName: 'Roblox Robux (Global)',
-      itemName: 'Roblox Robux 800 Robux',
-      price: 190000,
-      qty: 1,
-      sellerName: 'GameKongs',
-      status: 'completed',
-      paymentMethod: 'Ví MoMo'
-    },
-    {
-      id: 'G2G-194058',
-      date: '28/06/2026',
-      gameName: 'Liên Quân Mobile - Tài Khoản VIP',
-      itemName: 'Tài Khoản Cao Thủ 50 Skin',
-      price: 150000,
-      qty: 1,
-      sellerName: 'FastDeliver_Store',
-      status: 'completed',
-      paymentMethod: 'Chuyển khoản NH'
-    }
-  ]);
+  const [orders, setOrders] = useState([]);
   const handleSelectProduct = async (productId) => {
     setIsTransitioning(true);
 
@@ -114,7 +91,7 @@ function App() {
 
       // 2. Thiết lập selectedItem và selectedGame tương ứng
       setSelectedItem(formattedItem);
-      
+
       const gameObj = MOCK_GAMES.find(g => g.id === formattedItem.gameId) || MOCK_GAMES[0];
       setSelectedGame(gameObj);
 
@@ -200,11 +177,8 @@ function App() {
     }
   });
 
-  // Buyer wallet balance state (initialized from localStorage, defaults to 0₫)
-  const [userWalletBalance, setUserWalletBalance] = useState(() => {
-    const saved = localStorage.getItem('g2g_user_wallet_balance');
-    return saved ? Number(saved) : 0;
-  });
+  // Buyer wallet balance state (initialized dynamically per user)
+  const [userWalletBalance, setUserWalletBalance] = useState(0);
 
   const handleDepositToWallet = (amount) => {
     if (!currentUser) {
@@ -214,7 +188,7 @@ function App() {
     }
     setUserWalletBalance(prev => {
       const updated = prev + amount;
-      localStorage.setItem('g2g_user_wallet_balance', String(updated));
+      localStorage.setItem(`g2g_user_wallet_balance_${currentUser.name}`, String(updated));
       return updated;
     });
     triggerToast(`Nạp tiền thành công! Đã cộng ${amount.toLocaleString('vi-VN')}₫ vào tài khoản.`);
@@ -230,41 +204,161 @@ function App() {
   const [toastMessage, setToastMessage] = useState(null);
 
   // Seller States & Data (Starts empty for a newly registered seller)
-  const [sellerWalletBalance, setSellerWalletBalance] = useState(() => {
-    const saved = localStorage.getItem('g2g_seller_wallet_balance');
-    return saved ? Number(saved) : 0;
-  });
-  const [sellerWalletTransactions, setSellerWalletTransactions] = useState(() => {
-    try {
-      const saved = localStorage.getItem('g2g_seller_wallet_transactions');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  // Seller States & Data (Starts empty for a newly registered seller)
+  const [sellerWalletBalance, setSellerWalletBalance] = useState(0);
+  const [sellerWalletTransactions, setSellerWalletTransactions] = useState([]);
+
+  // Load wallet details dynamically when currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      const savedBalance = localStorage.getItem(`g2g_seller_wallet_balance_${currentUser.name}`);
+      setSellerWalletBalance(savedBalance ? Number(savedBalance) : 0);
+
+      try {
+        const savedTx = localStorage.getItem(`g2g_seller_wallet_transactions_${currentUser.name}`);
+        setSellerWalletTransactions(savedTx ? JSON.parse(savedTx) : []);
+      } catch {
+        setSellerWalletTransactions([]);
+      }
+
+      // Load buyer specific states
+      const savedUserBalance = localStorage.getItem(`g2g_user_wallet_balance_${currentUser.name}`);
+      // Default starting balance is 0 VND for new accounts
+      setUserWalletBalance(savedUserBalance ? Number(savedUserBalance) : 0);
+
+      try {
+        const savedCart = localStorage.getItem(`g2g_user_cart_${currentUser.name}`);
+        setCart(savedCart ? JSON.parse(savedCart) : []);
+      } catch {
+        setCart([]);
+      }
+
+      try {
+        const savedOrders = localStorage.getItem(`g2g_user_orders_${currentUser.name}`);
+        setOrders(savedOrders ? JSON.parse(savedOrders) : [
+          {
+            id: 'G2G-583019',
+            date: '01/07/2026',
+            gameName: 'Roblox Robux (Global)',
+            itemName: 'Roblox Robux 800 Robux',
+            price: 190000,
+            qty: 1,
+            sellerName: 'GameKongs',
+            status: 'completed',
+            paymentMethod: 'Ví MoMo'
+          },
+          {
+            id: 'G2G-194058',
+            date: '28/06/2026',
+            gameName: 'Liên Quân Mobile - Tài Khoản VIP',
+            itemName: 'Tài Khoản Cao Thủ 50 Skin',
+            price: 150000,
+            qty: 1,
+            sellerName: 'FastDeliver_Store',
+            status: 'completed',
+            paymentMethod: 'Chuyển khoản NH'
+          }
+        ]);
+      } catch {
+        setOrders([]);
+      }
+    } else {
+      setSellerWalletBalance(0);
+      setSellerWalletTransactions([]);
+      setUserWalletBalance(0);
+      setCart([]);
+      setOrders([]);
+    }
+  }, [currentUser]);
+
   const [sellerListings, setSellerListings] = useState(() => {
     try {
       const saved = localStorage.getItem('g2g_seller_listings');
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   }); // Persisted seller listings
-  const [sellerOrders, setSellerOrders] = useState(() => {
+
+  // Migration effect to fix mismatched categories for legacy listings in localStorage on mount
+  useEffect(() => {
     try {
-      const saved = localStorage.getItem('g2g_seller_orders');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+      const saved = localStorage.getItem('g2g_seller_listings');
+      if (saved) {
+        const listings = JSON.parse(saved);
+        let changed = false;
+        const updated = listings.map(item => {
+          const game = MOCK_GAMES.find(g => g.id === item.gameId);
+          if (game && game.category && item.category !== game.category) {
+            changed = true;
+            return {
+              ...item,
+              category: game.category
+            };
+          }
+          return item;
+        });
+
+        if (changed) {
+          setSellerListings(updated);
+          localStorage.setItem('g2g_seller_listings', JSON.stringify(updated));
+        }
+      }
+    } catch (e) {
+      console.error("Migration error:", e);
+    }
+  }, []);
+  const [sellerOrders, setSellerOrders] = useState([]);
+
+  // Load seller orders from per-user localStorage key when user changes
+  useEffect(() => {
+    if (currentUser) {
+      const soKey = `g2g_seller_orders_${currentUser.name}`;
+      try {
+        const saved = localStorage.getItem(soKey);
+        setSellerOrders(saved ? JSON.parse(saved) : []);
+      } catch { setSellerOrders([]); }
+    } else {
+      setSellerOrders([]);
+    }
+  }, [currentUser]);
   const [sellerTab, setSellerTab] = useState('overview'); // 'overview', 'add-listing', 'listings', 'orders', 'wallet'
 
   useEffect(() => {
-    localStorage.setItem('g2g_seller_wallet_balance', String(sellerWalletBalance));
-  }, [sellerWalletBalance]);
+    if (currentUser) {
+      localStorage.setItem(`g2g_seller_wallet_balance_${currentUser.name}`, String(sellerWalletBalance));
+    }
+  }, [sellerWalletBalance, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('g2g_seller_wallet_transactions', JSON.stringify(sellerWalletTransactions));
-  }, [sellerWalletTransactions]);
+    if (currentUser) {
+      localStorage.setItem(`g2g_seller_wallet_transactions_${currentUser.name}`, JSON.stringify(sellerWalletTransactions));
+    }
+  }, [sellerWalletTransactions, currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(`g2g_user_wallet_balance_${currentUser.name}`, String(userWalletBalance));
+    }
+  }, [userWalletBalance, currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(`g2g_user_cart_${currentUser.name}`, JSON.stringify(cart));
+    }
+  }, [cart, currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(`g2g_user_orders_${currentUser.name}`, JSON.stringify(orders));
+    }
+  }, [orders, currentUser]);
 
   useEffect(() => {
     localStorage.setItem('g2g_seller_orders', JSON.stringify(sellerOrders));
   }, [sellerOrders]);
+
+  useEffect(() => {
+    localStorage.setItem('g2g_seller_listings', JSON.stringify(sellerListings));
+  }, [sellerListings]);
 
   // Chat System State
   const [showChatDrawer, setShowChatDrawer] = useState(false);
@@ -369,8 +463,10 @@ function App() {
   }, [orders]);
 
   // Toast Alerts
-  const triggerToast = (msg) => {
+  const [toastType, setToastType] = useState('success');
+  const triggerToast = (msg, type = 'success') => {
     setToastMessage(msg);
+    setToastType(type);
     setTimeout(() => {
       setToastMessage(null);
     }, 4000);
@@ -440,7 +536,20 @@ function App() {
         const game = params.game || MOCK_GAMES.find(g => g.id === params.gameId);
         // Use params.item directly (works for both MOCK items and sellerListings items)
         const item = params.item || (game && game.items.find(i => i.id === params.itemId));
-        const seller = params.seller || MOCK_SELLERS[0];
+        let seller = params.seller;
+        if (!seller) {
+          if (item && item.isSellerListing) {
+            seller = {
+              name: item.sellerName || 'Người Bán',
+              rating: '5.0',
+              reviews: 1,
+              successRate: '100%',
+              multiplier: 1
+            };
+          } else {
+            seller = MOCK_SELLERS[0];
+          }
+        }
         if (game) setSelectedGame(game);
         if (item) setSelectedItem(item);
         setSelectedSeller(seller);
@@ -648,7 +757,7 @@ function App() {
 
     const multiplier = seller.multiplier !== undefined ? seller.multiplier : 1;
     const unitPrice = Math.floor((item.price || item.unitPrice || 0) * multiplier);
-    
+
     const existingIndex = cart.findIndex(c => c.itemId === item.id && c.sellerName === sellerName);
 
     if (existingIndex > -1) {
@@ -720,7 +829,7 @@ function App() {
 
     const multiplier = seller.multiplier !== undefined ? seller.multiplier : 1;
     const unitPrice = Math.floor((item.price || item.unitPrice || 0) * multiplier);
-    
+
     const newCartItem = {
       cartId: item.cartId || (Date.now() + Math.random().toString(36).substr(2, 5)),
       itemId: item.id,
@@ -744,8 +853,8 @@ function App() {
     if (cart.length === 0) return;
 
     const gatewayFee = activePaymentTab === 'momo' ? 15000 :
-                       activePaymentTab === 'zalopay' ? 12000 :
-                       activePaymentTab === 'banking' ? 10000 : 25000;
+      activePaymentTab === 'zalopay' ? 12000 :
+        activePaymentTab === 'banking' ? 10000 : 25000;
     const totalCost = getCartTotal() + gatewayFee;
     if (userWalletBalance < totalCost) {
       setInsufficientFundsData({ required: totalCost, current: userWalletBalance });
@@ -760,8 +869,101 @@ function App() {
 
       setUserWalletBalance(prev => {
         const updated = prev - totalCost;
-        localStorage.setItem('g2g_user_wallet_balance', String(updated));
+        localStorage.setItem(`g2g_user_wallet_balance_${currentUser.name}`, String(updated));
         return updated;
+      });
+      // Notify seller of the purchase & 10% fee detail and credit seller/admin immediately
+      cart.forEach(cartItem => {
+        const itemTotal = cartItem.price * cartItem.qty;
+        const appFee = itemTotal * 0.10;
+        const sellerNet = itemTotal - appFee;
+
+        // 1. Transfer 10% fee to Admin's wallet in localStorage
+        const currentAdminBal = Number(localStorage.getItem('g2g_user_wallet_balance_Admin G2G') || '0');
+        localStorage.setItem('g2g_user_wallet_balance_Admin G2G', String(currentAdminBal + appFee));
+
+        // 2. Transfer 90% net earnings to Seller's wallet in localStorage
+        const currentSellerBal = Number(localStorage.getItem(`g2g_seller_wallet_balance_${cartItem.sellerName}`) || '0');
+        const newSellerBal = currentSellerBal + sellerNet;
+        localStorage.setItem(`g2g_seller_wallet_balance_${cartItem.sellerName}`, String(newSellerBal));
+
+        // If the logged-in user is this seller, update React state in real-time
+        if (currentUser && currentUser.name === cartItem.sellerName) {
+          setSellerWalletBalance(newSellerBal);
+        }
+
+        // 3. Write a transaction log for the seller in localStorage
+        let sellerTxs = [];
+        try {
+          const savedTxs = localStorage.getItem(`g2g_seller_wallet_transactions_${cartItem.sellerName}`);
+          sellerTxs = savedTxs ? JSON.parse(savedTxs) : [];
+        } catch (e) {
+          sellerTxs = [];
+        }
+        const newSellerTx = {
+          id: `T-${Math.floor(100000 + Math.random() * 900000)}`,
+          date: new Date().toLocaleDateString('vi-VN'),
+          type: 'order_payment',
+          description: `Nhận tiền bán đơn hàng (Tổng: ${itemTotal.toLocaleString('vi-VN')}₫, Khấu trừ 10% phí app: -${appFee.toLocaleString('vi-VN')}₫ chuyển về Admin)`,
+          amount: sellerNet
+        };
+        sellerTxs = [newSellerTx, ...sellerTxs];
+        localStorage.setItem(`g2g_seller_wallet_transactions_${cartItem.sellerName}`, JSON.stringify(sellerTxs));
+
+        if (currentUser && currentUser.name === cartItem.sellerName) {
+          setSellerWalletTransactions(sellerTxs);
+        }
+
+        // Write notifications for Buyer, Seller, and Admin
+        const buyerName = currentUser ? currentUser.name : 'GamerPro99';
+        const formattedDate = new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+        // A. Buyer Notification
+        try {
+          const buyerKey = `g2g_notifications_${buyerName}`;
+          const currentBuyerN = JSON.parse(localStorage.getItem(buyerKey) || '[]');
+          const buyerNotify = {
+            id: Date.now() + Math.random(),
+            title: "🛍️ Mua hàng thành công",
+            message: `Bạn đã mua thành công sản phẩm "${cartItem.itemName}" từ người bán ${cartItem.sellerName}. Đơn giá: ${cartItem.price.toLocaleString('vi-VN')}₫.`,
+            date: formattedDate,
+            unread: true
+          };
+          localStorage.setItem(buyerKey, JSON.stringify([buyerNotify, ...currentBuyerN]));
+        } catch (e) { console.error(e); }
+
+        // B. Seller Notification
+        try {
+          const sellerKey = `g2g_notifications_${cartItem.sellerName}`;
+          const currentSellerN = JSON.parse(localStorage.getItem(sellerKey) || '[]');
+          const sellerNotify = {
+            id: Date.now() + Math.random(),
+            title: "💰 Bạn có đơn hàng bán mới",
+            message: `Người mua "${buyerName}" đã thanh toán sản phẩm "${cartItem.itemName}" của bạn. Doanh thu: +${itemTotal.toLocaleString('vi-VN')}₫. Khấu trừ 10% phí app: -${appFee.toLocaleString('vi-VN')}₫, Thực nhận: +${sellerNet.toLocaleString('vi-VN')}₫ (đã cộng vào ví).`,
+            date: formattedDate,
+            unread: true
+          };
+          localStorage.setItem(sellerKey, JSON.stringify([sellerNotify, ...currentSellerN]));
+        } catch (e) { console.error(e); }
+
+        // C. Admin Notification
+        try {
+          const adminKey = `g2g_notifications_Admin G2G`;
+          const currentAdminN = JSON.parse(localStorage.getItem(adminKey) || '[]');
+          const adminNotify = {
+            id: Date.now() + Math.random(),
+            title: "👑 Đơn hàng mới trên hệ thống",
+            message: `Người mua "${buyerName}" đã mua sản phẩm từ shop "${cartItem.sellerName}". Giá trị đơn hàng: ${itemTotal.toLocaleString('vi-VN')}₫. Hoa hồng trích 10% thu về Admin: +${appFee.toLocaleString('vi-VN')}₫.`,
+            date: formattedDate,
+            unread: true
+          };
+          localStorage.setItem(adminKey, JSON.stringify([adminNotify, ...currentAdminN]));
+        } catch (e) { console.error(e); }
+
+        triggerToast(
+          `🔔 [Đơn hàng mới] "${cartItem.itemName}" đã bán! Tổng: ${itemTotal.toLocaleString('vi-VN')}₫ (Phí sàn 10%: -${appFee.toLocaleString('vi-VN')}₫ chuyển về Admin, Thực nhận: +${sellerNet.toLocaleString('vi-VN')}₫)`,
+          'success'
+        );
       });
 
       // Deduct stock in MOCK_GAMES
@@ -774,6 +976,45 @@ function App() {
           }
         }
       });
+
+      // Deduct stock in sellerListings & create seller orders - PERSISTED to localStorage
+      const newSellerOrders = [];
+      const currentListings = JSON.parse(localStorage.getItem('g2g_seller_listings') || '[]');
+      const updatedListings = currentListings.map(item => {
+        const cartItem = cart.find(ci => ci.itemId === item.id);
+        if (cartItem) {
+          newSellerOrders.push({
+            id: `G2G-${Math.floor(100000 + Math.random() * 900000)}`,
+            date: new Date().toLocaleDateString('vi-VN'),
+            gameId: cartItem.gameId,
+            gameName: cartItem.gameName,
+            itemName: cartItem.itemName,
+            price: cartItem.price,
+            qty: cartItem.qty,
+            buyerName: currentUser ? currentUser.name : 'GamerPro99',
+            status: 'completed',
+            sellerName: cartItem.sellerName
+          });
+          return { ...item, stock: Math.max(0, (item.stock || 0) - cartItem.qty) };
+        }
+        return item;
+      });
+
+      // Save updated listings (stock reduced) back to localStorage
+      localStorage.setItem('g2g_seller_listings', JSON.stringify(updatedListings));
+      setSellerListings(updatedListings);
+
+      // Save seller orders to localStorage so seller can see them after login
+      if (newSellerOrders.length > 0) {
+        newSellerOrders.forEach(so => {
+          const soKey = `g2g_seller_orders_${so.sellerName}`;
+          let existing = [];
+          try { existing = JSON.parse(localStorage.getItem(soKey) || '[]'); } catch (e) {}
+          localStorage.setItem(soKey, JSON.stringify([so, ...existing]));
+        });
+        setSellerOrders(prev => [...newSellerOrders, ...prev]);
+      }
+
       setForceUpdate(prev => prev + 1);
 
       const newOrders = cart.map(item => ({
@@ -784,7 +1025,7 @@ function App() {
         price: item.price,
         qty: item.qty,
         sellerName: item.sellerName,
-        status: 'pending',
+        status: 'completed',
         paymentMethod: activePaymentTab === 'momo' ? 'Ví MoMo' :
           activePaymentTab === 'zalopay' ? 'Ví ZaloPay' :
             activePaymentTab === 'banking' ? 'Chuyển khoản NH' : 'Thẻ Quốc Thế'
@@ -881,7 +1122,7 @@ function App() {
       const data = await res.json().catch(() => ({ message: "Không thể phân tích phản hồi từ máy chủ." }));
 
       if (!res.ok) {
-        triggerToast(data.message || 'Đăng nhập thất bại!');
+        triggerToast(data.message || 'Đăng nhập thất bại!', 'error');
         return;
       }
 
@@ -901,28 +1142,8 @@ function App() {
       setLoginEmail('');
       setLoginPassword('');
     } catch (err) {
-      console.error("Backend connection failed. Using offline fallback:", err);
-      const isEmail = normalizedMail.includes('@');
-      const isPhone = /^\+?\d{8,15}$/.test(normalizedMail);
-      if ((isEmail || isPhone) && loginPassword.length >= 6) {
-        const isSellerUser = normalizedMail === 'seller@gmail.com' || normalizedMail === 'admin@gmail.com';
-        const userObj = {
-          token: "mock-offline-token",
-          id: "1004154462",
-          mail: normalizedMail,
-          name: normalizedMail.split('@')[0] || "User",
-          role: isSellerUser ? 'seller' : 'regular',
-          isSeller: isSellerUser
-        };
-        setCurrentUser(userObj);
-        localStorage.setItem('currentUser', JSON.stringify(userObj));
-        triggerToast('Đăng nhập thành công (Chế độ Ngoại tuyến)!');
-        setActiveModal(null);
-        setLoginEmail('');
-        setLoginPassword('');
-      } else {
-        triggerToast('Không thể kết nối đến backend! (Định dạng offline cần mật khẩu từ 6 ký tự)');
-      }
+      console.error("Backend connection failed:", err);
+      triggerToast("Không thể kết nối đến máy chủ backend!", 'error');
     }
   };
 
@@ -937,7 +1158,7 @@ function App() {
     const tax_id = customData?.tax_id || null;
 
     if (!name || !email || !password) {
-      triggerToast('Vui lòng điền đầy đủ thông tin!');
+      triggerToast('Vui lòng điền đầy đủ thông tin!', 'error');
       return;
     }
 
@@ -959,31 +1180,26 @@ function App() {
       const data = await res.json().catch(() => ({ message: "Không thể phân tích phản hồi từ máy chủ." }));
 
       if (!res.ok) {
-        triggerToast(data.message || 'Đăng ký thất bại!');
+        triggerToast(data.message || 'Đăng ký thất bại!', 'error');
         return;
       }
 
       triggerToast('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
-      
+
       setSignupUsername('');
       setSignupEmail('');
       setSignupPassword('');
       setActiveModal(null);
     } catch (err) {
-      console.error("Backend connection failed. Using offline signup fallback:", err);
-      triggerToast('Đăng ký thành công (Chế độ Ngoại tuyến)! Vui lòng đăng nhập.');
-
-      setSignupUsername('');
-      setSignupEmail('');
-      setSignupPassword('');
-      setActiveModal(null);
+      console.error("Backend connection failed:", err);
+      triggerToast("Không thể kết nối đến máy chủ backend để đăng ký!", 'error');
     }
   };
 
   const handleSellerSubmit = async (e) => {
     e.preventDefault();
     if (!sellerExperience) {
-      triggerToast('Vui lòng nhập mô tả kinh nghiệm bán hàng!');
+      triggerToast('Vui lòng nhập mô tả kinh nghiệm bán hàng!', 'error');
       return;
     }
 
@@ -992,41 +1208,36 @@ function App() {
         const res = await fetch("http://127.0.0.1:5000/upgrade-seller", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mail: currentUser.mail }),
+          body: JSON.stringify({
+            mail: currentUser.mail,
+            game: sellerGame,
+            experience: sellerExperience
+          }),
         });
 
         const data = await res.json().catch(() => ({ message: "Không thể phân tích phản hồi từ máy chủ." }));
 
         if (!res.ok) {
-          triggerToast(data.message || 'Nâng cấp người bán thất bại!');
+          triggerToast(data.message || 'Gửi yêu cầu nâng cấp thất bại!', 'error');
           return;
         }
 
-        const updatedUser = { 
-          ...currentUser, 
-          isSeller: true, 
-          role: 'seller' 
+        const updatedUser = {
+          ...currentUser,
+          sellerStatus: data.user.sellerStatus,
+          sellerRejectReason: data.user.sellerRejectReason
         };
         setCurrentUser(updatedUser);
         localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        triggerToast(`Đăng ký bán game ${sellerGame} thành công! Tài khoản của bạn đã được nâng cấp lên Người Bán.`);
+        triggerToast(data.message || `Đăng ký gửi yêu cầu thành công! Vui lòng chờ Admin xét duyệt.`);
         setSellerTab('overview');
         pushRoute('seller-landing');
       } catch (err) {
-         console.error("Backend connection failed. Upgrading locally:", err);
-         const updatedUser = { 
-           ...currentUser, 
-           isSeller: true, 
-           role: 'seller' 
-         };
-         setCurrentUser(updatedUser);
-         localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-         triggerToast(`Đăng ký bán game ${sellerGame} thành công (Chế độ Ngoại tuyến)!`);
-         setSellerTab('overview');
-         pushRoute('seller-landing');
+        console.error("Backend upgrade connection failed:", err);
+        triggerToast("Không thể kết nối đến máy chủ backend để đăng ký!", 'error');
       }
     } else {
-      triggerToast(`Đăng ký bán game ${sellerGame} thành công! Vui lòng đăng nhập để bắt đầu bán.`);
+      triggerToast(`Vui lòng đăng nhập tài khoản để đăng ký bán game ${sellerGame}!`);
     }
 
     setActiveModal(null);
@@ -1043,7 +1254,7 @@ function App() {
     <div className="g2g-clone-app">
       {/* Toast Alert Banner */}
       {toastMessage && (
-        <div className="toast-alert">
+        <div className={`toast-alert ${toastType}`}>
           <div className="toast-indicator"></div>
           <span>{toastMessage}</span>
         </div>
@@ -1082,6 +1293,7 @@ function App() {
         {currentView === 'seller-landing' && (
           <SellerLanding
             currentUser={currentUser}
+            setCurrentUser={setCurrentUser}
             setActiveModal={setActiveModal}
             pushRoute={pushRoute}
             triggerToast={triggerToast}
@@ -1095,6 +1307,13 @@ function App() {
             setSellerOrders={setSellerOrders}
             sellerTab={sellerTab}
             setSellerTab={setSellerTab}
+          />
+        )}
+
+        {currentView === 'admin-dashboard' && currentUser && currentUser.role === 'admin' && (
+          <AdminDashboard
+            currentUser={currentUser}
+            triggerToast={triggerToast}
           />
         )}
 
@@ -1343,9 +1562,9 @@ function App() {
               margin: '0 auto 20px', boxShadow: '0 8px 24px rgba(255,51,51,0.4)'
             }}>
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
             </div>
 

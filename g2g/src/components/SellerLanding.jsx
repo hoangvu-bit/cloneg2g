@@ -3,6 +3,7 @@ import { MOCK_GAMES } from '../MockData';
 
 export default function SellerLanding({
   currentUser,
+  setCurrentUser,
   setActiveModal,
   pushRoute,
   triggerToast,
@@ -17,6 +18,36 @@ export default function SellerLanding({
   sellerTab,
   setSellerTab,
 }) {
+  // Sync user profile status on mount to capture Admin decisions dynamically
+  React.useEffect(() => {
+    if (currentUser) {
+      fetch('http://127.0.0.1:5000/users')
+        .then(res => res.json())
+        .then(data => {
+          const latestUser = data.find(u => u.mail === currentUser.mail);
+          if (latestUser) {
+            const isSeller = latestUser.role === 'seller' || latestUser.role === 'business';
+            if (
+              currentUser.role !== latestUser.role ||
+              currentUser.sellerStatus !== latestUser.sellerStatus ||
+              currentUser.sellerRejectReason !== latestUser.sellerRejectReason
+            ) {
+              const updatedUser = {
+                ...currentUser,
+                role: latestUser.role,
+                isSeller,
+                sellerStatus: latestUser.sellerStatus || 'none',
+                sellerRejectReason: latestUser.sellerRejectReason || ''
+              };
+              setCurrentUser(updatedUser);
+              localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+            }
+          }
+        })
+        .catch(err => console.error("Error syncing profile:", err));
+    }
+  }, []);
+
   // If user is not a seller, show landing page with registration banner
   const handleRegisterClick = () => {
     if (currentUser) {
@@ -28,7 +59,7 @@ export default function SellerLanding({
 
   // Add Listing Form States
   const [addGameId, setAddGameId] = useState(MOCK_GAMES[0]?.id || 'roblox');
-  const [addCategory, setAddCategory] = useState('coins');
+  const [addCategory, setAddCategory] = useState(MOCK_GAMES[0]?.category || 'coins');
   const [addRegion, setAddRegion] = useState('Global');
   const [addItemName, setAddItemName] = useState('');
   const [addPrice, setAddPrice] = useState('');
@@ -49,6 +80,9 @@ export default function SellerLanding({
 
   // Interactive Chart States
   const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  const myListings = sellerListings.filter(item => item.sellerName === currentUser?.name);
+  const myOrders = sellerOrders.filter(order => order.sellerName === currentUser?.name);
 
   // Generate 7 days of dates dynamically and map real completed sales from sellerWalletTransactions
   const getDailySales = () => {
@@ -117,71 +151,26 @@ export default function SellerLanding({
       localStorage.setItem('g2g_seller_listings', JSON.stringify(updatedListings));
     } catch (e) { console.error(e); }
 
-    // Integrate with MOCK_GAMES in App so buyers can search and buy
-    if (selectedGame) {
-      if (!selectedGame.items) {
-        selectedGame.items = [];
-      }
-      selectedGame.items.unshift({
-        id: newListing.id,
-        name: newListing.name,
-        price: newListing.price,
-        badge: newListing.badge,
-        region: newListing.region,
-        offers: 1,
-        category: newListing.category,
-        sellerName: currentUser ? currentUser.name : 'Người Bán',
-        stock: newListing.stock,
-      });
-    }
-
     if (triggerToast) triggerToast(`Đã đăng bán "${addItemName}" thành công và cập nhật vào cửa hàng!`);
-
-    // Simulate a buyer placing an order after 6 seconds to show dynamic data changes!
-    setTimeout(() => {
-      const mockOrderId = `G2G-${Math.floor(100000 + Math.random() * 900000)}`;
-      
-      const newMockOrder = {
-        id: mockOrderId,
-        date: new Date().toLocaleDateString('vi-VN'),
-        gameId: addGameId,
-        gameName: selectedGame ? selectedGame.name : 'Unknown Game',
-        itemName: newListing.name,
-        price: newListing.price,
-        qty: 1,
-        buyerName: 'GamerPro99',
-        status: 'pending'
-      };
-
-      setSellerOrders(prev => [newMockOrder, ...prev]);
-      if (triggerToast) {
-        triggerToast(`[Hệ thống G2G] Người mua "GamerPro99" vừa đặt mua sản phẩm "${newListing.name}" của bạn! Hãy vào tab "Đơn hàng bán" để giao hàng.`);
-      }
-    }, 6000);
 
     // Clear Form
     setAddItemName('');
     setAddPrice('');
     setAddStock('');
     setAddDescription('');
+    setAddCategory('coins');
 
     // Switch to listings tab
     setSellerTab('listings');
   };
 
   // Handle deleting listing
-  const handleDeleteListing = (id, gameId) => {
+  const handleDeleteListing = (id) => {
     const updatedListings = sellerListings.filter(item => item.id !== id);
     setSellerListings(updatedListings);
     try {
       localStorage.setItem('g2g_seller_listings', JSON.stringify(updatedListings));
     } catch (e) { console.error(e); }
-
-    // Remove from mock game list
-    const selectedGame = MOCK_GAMES.find(g => g.id === gameId);
-    if (selectedGame && selectedGame.items) {
-      selectedGame.items = selectedGame.items.filter(item => item.id !== id);
-    }
 
     if (triggerToast) triggerToast('Đã xóa sản phẩm khỏi danh sách đăng bán.');
   };
@@ -193,7 +182,7 @@ export default function SellerLanding({
     setEditStock(item.stock);
   };
 
-  const saveEditListing = (id, gameId) => {
+  const saveEditListing = (id) => {
     const updatedPrice = Number(editPrice);
     const updatedStock = Number(editStock);
 
@@ -203,17 +192,6 @@ export default function SellerLanding({
       }
       return item;
     }));
-
-    // Update in global mock game list too
-    const selectedGame = MOCK_GAMES.find(g => g.id === gameId);
-    if (selectedGame && selectedGame.items) {
-      selectedGame.items = selectedGame.items.map(item => {
-        if (item.id === id) {
-          return { ...item, price: updatedPrice };
-        }
-        return item;
-      });
-    }
 
     setEditingId(null);
     if (triggerToast) triggerToast('Cập nhật giá và kho hàng thành công!');
@@ -228,19 +206,36 @@ export default function SellerLanding({
       return o;
     }));
 
-    const earnings = order.price * order.qty;
-    setSellerWalletBalance(prev => prev + earnings);
+    const totalAmount = order.price * order.qty;
+    const appFee = totalAmount * 0.10;
+    const netEarnings = totalAmount - appFee;
+
+    // Credit seller wallet
+    setSellerWalletBalance(prev => {
+      const updated = prev + netEarnings;
+      localStorage.setItem(`g2g_seller_wallet_balance_${currentUser.name}`, String(updated));
+      return updated;
+    });
+
+    // Transfer fee to Admin's wallet (Admin G2G)
+    const currentAdminBal = Number(localStorage.getItem('g2g_user_wallet_balance_Admin G2G') || '0');
+    localStorage.setItem('g2g_user_wallet_balance_Admin G2G', String(currentAdminBal + appFee));
 
     const newTx = {
       id: `T-${Math.floor(100000 + Math.random() * 900000)}`,
       date: new Date().toLocaleDateString('vi-VN'),
       type: 'order_payment',
-      description: `Nhận tiền bán hàng từ đơn ${order.id}`,
-      amount: earnings
+      description: `Nhận tiền bán đơn hàng ${order.id} (Tổng: ${totalAmount.toLocaleString('vi-VN')}₫, Khấu trừ 10% phí app: -${appFee.toLocaleString('vi-VN')}₫ chuyển về Admin)`,
+      amount: netEarnings
     };
-    setSellerWalletTransactions([newTx, ...sellerWalletTransactions]);
 
-    if (triggerToast) triggerToast(`Đã xác nhận giao hàng! ${formatCurrency(earnings)} đã được cộng vào ví của bạn.`);
+    const updatedTxs = [newTx, ...sellerWalletTransactions];
+    setSellerWalletTransactions(updatedTxs);
+    localStorage.setItem(`g2g_seller_wallet_transactions_${currentUser.name}`, JSON.stringify(updatedTxs));
+
+    if (triggerToast) {
+      triggerToast(`Đã giao hàng! Cộng +${netEarnings.toLocaleString('vi-VN')}₫ (Đã trừ 10% phí: -${appFee.toLocaleString('vi-VN')}₫ chuyển Admin G2G).`);
+    }
   };
 
   // Handle withdrawal submission
@@ -450,9 +445,49 @@ export default function SellerLanding({
               <p className="seller-landing-subtitle">
                 Tiếp cận hàng triệu người dùng trên toàn thế giới mà không tốn chi phí đăng ký làm người bán.
               </p>
-              <button className="seller-landing-btn-register" onClick={handleRegisterClick}>
-                Đăng ký ngay
-              </button>
+              {currentUser && currentUser.sellerStatus === 'pending' ? (
+                <div style={{
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  border: '1.5px solid #fbbf24',
+                  borderRadius: '10px',
+                  padding: '20px',
+                  color: '#fbbf24',
+                  maxWidth: '500px',
+                  fontWeight: 600,
+                  fontSize: '14.5px',
+                  lineHeight: '1.5',
+                  boxShadow: '0 8px 24px rgba(251, 191, 36, 0.15)'
+                }}>
+                  ⏳ Yêu cầu lên người bán của bạn đang chờ Admin duyệt. Vui lòng quay lại sau!
+                </div>
+              ) : currentUser && currentUser.sellerStatus === 'rejected' ? (
+                <div style={{ maxWidth: '500px' }}>
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1.5px solid #ef4444',
+                    borderRadius: '10px',
+                    padding: '20px',
+                    color: '#ff8888',
+                    fontWeight: 600,
+                    fontSize: '14.5px',
+                    lineHeight: '1.5',
+                    marginBottom: '16px',
+                    boxShadow: '0 8px 24px rgba(239, 68, 68, 0.15)'
+                  }}>
+                    ❌ Yêu cầu lên người bán trước đây của bạn đã bị từ chối do:
+                    <div style={{ color: '#ffffff', marginTop: '8px', padding: '10px', background: '#17181c', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13.5px', fontWeight: 'normal' }}>
+                      {currentUser.sellerRejectReason || 'Không đủ điều kiện xét duyệt.'}
+                    </div>
+                  </div>
+                  <button className="seller-landing-btn-register" onClick={handleRegisterClick}>
+                    Gửi lại yêu cầu xét duyệt mới
+                  </button>
+                </div>
+              ) : (
+                <button className="seller-landing-btn-register" onClick={handleRegisterClick}>
+                  Đăng ký ngay
+                </button>
+              )}
             </div>
 
             <div className="seller-landing-right">
@@ -972,7 +1007,7 @@ export default function SellerLanding({
                     <div className="seller-stat-icon">📥</div>
                   </div>
                   <div className="seller-stat-value">
-                    {sellerOrders.filter(o => o.status === 'pending').length} đơn hàng
+                    {myOrders.filter(o => o.status === 'pending').length} đơn hàng
                   </div>
                 </div>
 
@@ -981,7 +1016,7 @@ export default function SellerLanding({
                     <span className="seller-stat-label">Sản phẩm đang bán</span>
                     <div className="seller-stat-icon">📦</div>
                   </div>
-                  <div className="seller-stat-value">{sellerListings.length} sản phẩm</div>
+                  <div className="seller-stat-value">{myListings.length} sản phẩm</div>
                 </div>
 
                 <div className="seller-stat-card">
@@ -1148,7 +1183,14 @@ export default function SellerLanding({
                     <select
                       className="seller-form-input"
                       value={addGameId}
-                      onChange={(e) => setAddGameId(e.target.value)}
+                      onChange={(e) => {
+                        const newGameId = e.target.value;
+                        setAddGameId(newGameId);
+                        const selectedGameObj = MOCK_GAMES.find(g => g.id === newGameId);
+                        if (selectedGameObj && selectedGameObj.category) {
+                          setAddCategory(selectedGameObj.category);
+                        }
+                      }}
                     >
                       {MOCK_GAMES.map(g => (
                         <option key={g.id} value={g.id}>{g.name}</option>
@@ -1259,7 +1301,7 @@ export default function SellerLanding({
           {sellerTab === 'listings' && (
             <div className="seller-table-card">
               <h3 className="table-card-title">Quản lý sản phẩm đang bán</h3>
-              {sellerListings.length === 0 ? (
+              {myListings.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: '#72767d' }}>
                   Bạn chưa có sản phẩm nào đăng bán. Hãy nhấn tab "Đăng bán sản phẩm" để đăng bán.
                 </div>
@@ -1276,7 +1318,7 @@ export default function SellerLanding({
                     </tr>
                   </thead>
                   <tbody>
-                    {sellerListings.map((item) => (
+                    {myListings.map((item) => (
                       <tr key={item.id}>
                         <td style={{ fontWeight: 'bold' }}>{item.gameName}</td>
                         <td>{item.name}</td>
@@ -1311,7 +1353,7 @@ export default function SellerLanding({
                               <button
                                 className="seller-btn-outline"
                                 style={{ borderColor: '#23a55a', color: '#23a55a' }}
-                                onClick={() => saveEditListing(item.id, item.gameId)}
+                                onClick={() => saveEditListing(item.id)}
                               >
                                 Lưu
                               </button>
@@ -1320,7 +1362,7 @@ export default function SellerLanding({
                           ) : (
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                               <button className="seller-btn-outline" onClick={() => startEditing(item)}>Sửa</button>
-                              <button className="seller-btn-danger" onClick={() => handleDeleteListing(item.id, item.gameId)}>Xóa</button>
+                              <button className="seller-btn-danger" onClick={() => handleDeleteListing(item.id)}>Xóa</button>
                             </div>
                           )}
                         </td>
@@ -1336,7 +1378,7 @@ export default function SellerLanding({
           {sellerTab === 'orders' && (
             <div className="seller-table-card">
               <h3 className="table-card-title">Đơn hàng của khách hàng</h3>
-              {sellerOrders.length === 0 ? (
+              {myOrders.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: '#72767d' }}>
                   Hiện tại bạn chưa nhận được đơn hàng mua nào.
                 </div>
@@ -1354,7 +1396,7 @@ export default function SellerLanding({
                     </tr>
                   </thead>
                   <tbody>
-                    {sellerOrders.map((order) => (
+                    {myOrders.map((order) => (
                       <tr key={order.id}>
                         <td style={{ color: '#ff3333', fontWeight: 'bold' }}>{order.id}</td>
                         <td>{order.date}</td>

@@ -2059,21 +2059,31 @@ body.light-theme .chat-widget {
 /* Toast Alert Style */
 .toast-alert {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   background-color: var(--bg-secondary);
   border: 1.5px solid var(--success);
   color: var(--text-primary);
   padding: 14px 24px;
   border-radius: 12px;
-  z-index: 20000;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  z-index: 200000;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
   font-weight: 600;
   font-size: 13.5px;
   display: flex;
   align-items: center;
   gap: 12px;
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-alert.error {
+  border-color: #ff3b30;
+}
+
+.toast-alert.error .toast-indicator {
+  background-color: #ff3b30;
+  box-shadow: 0 0 8px #ff3b30;
 }
 
 .toast-indicator {
@@ -2093,6 +2103,11 @@ body.light-theme .chat-widget {
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { transform: translate(-50%, -20px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
 }
 
 /* G2G Intermediate Category Directory Styles */

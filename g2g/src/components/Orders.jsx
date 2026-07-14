@@ -48,23 +48,40 @@ export default function Orders({
       return o;
     }));
 
-    const earnings = order.price * order.qty;
+    const totalAmount = order.price * order.qty;
+    const appFee = totalAmount * 0.10;
+    const netEarnings = totalAmount - appFee;
+
+    // Credit seller wallet
     if (setSellerWalletBalance) {
-      setSellerWalletBalance(prev => prev + earnings);
+      setSellerWalletBalance(prev => {
+        const updated = prev + netEarnings;
+        localStorage.setItem(`g2g_seller_wallet_balance_${currentUser.name}`, String(updated));
+        return updated;
+      });
     }
+
+    // Transfer fee to Admin's wallet (Admin G2G)
+    const currentAdminBal = Number(localStorage.getItem('g2g_user_wallet_balance_Admin G2G') || '0');
+    localStorage.setItem('g2g_user_wallet_balance_Admin G2G', String(currentAdminBal + appFee));
 
     const newTx = {
       id: `T-${Math.floor(100000 + Math.random() * 900000)}`,
       date: new Date().toLocaleDateString('vi-VN'),
       type: 'order_payment',
-      description: `Nhận tiền bán hàng từ đơn ${order.id}`,
-      amount: earnings
+      description: `Nhận tiền bán đơn hàng ${order.id} (Tổng: ${totalAmount.toLocaleString('vi-VN')}₫, Khấu trừ 10% phí app: -${appFee.toLocaleString('vi-VN')}₫ chuyển về Admin)`,
+      amount: netEarnings
     };
+
     if (setSellerWalletTransactions) {
-      setSellerWalletTransactions(prev => [newTx, ...prev]);
+      setSellerWalletTransactions(prev => {
+        const updatedTxs = [newTx, ...prev];
+        localStorage.setItem(`g2g_seller_wallet_transactions_${currentUser.name}`, JSON.stringify(updatedTxs));
+        return updatedTxs;
+      });
     }
 
-    triggerToast(`Giao hàng đơn #${order.id} thành công! +${earnings.toLocaleString('vi-VN')}₫ đã được cộng vào ví người bán.`);
+    triggerToast(`Giao hàng đơn #${order.id} thành công! +${netEarnings.toLocaleString('vi-VN')}₫ đã được cộng vào ví người bán (Chiết khấu 10% phí app: -${appFee.toLocaleString('vi-VN')}₫ chuyển Admin).`);
   };
 
   // Handle local Quick Deposit submit
