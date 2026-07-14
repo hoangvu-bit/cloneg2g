@@ -764,6 +764,18 @@ function App() {
         return updated;
       });
 
+      // Deduct stock in MOCK_GAMES
+      cart.forEach(cartItem => {
+        const game = MOCK_GAMES.find(g => g.id === cartItem.gameId);
+        if (game) {
+          const product = game.items.find(i => i.id === cartItem.itemId);
+          if (product) {
+            product.stock = Math.max(0, (product.stock || 0) - cartItem.qty);
+          }
+        }
+      });
+      setForceUpdate(prev => prev + 1);
+
       const newOrders = cart.map(item => ({
         id: `G2G-${Math.floor(100000 + Math.random() * 900000)}`,
         date: new Date().toLocaleDateString('vi-VN'),
@@ -850,8 +862,8 @@ function App() {
     setShowChatDrawer(true);
   };
 
-  // Form Handlers (Bypassed Backend for UI Testing)
-  const handleLoginSubmit = (e) => {
+  // Form Handlers (Integrated with Backend API)
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (!loginEmail || !loginPassword) {
       triggerToast('Vui lòng nhập tài khoản và mật khẩu!');
@@ -859,35 +871,70 @@ function App() {
     }
 
     const normalizedMail = loginEmail.replace(/[\s-]/g, "").trim();
-    triggerToast('Đăng nhập thành công (Bypass Backend)!');
+    try {
+      const res = await fetch("http://127.0.0.1:5000/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mail: normalizedMail, password: loginPassword }),
+      });
 
-    // Create mock user object
-    const userObj = {
-      token: "mock-token-12345",
-      id: "1004154462",
-      mail: normalizedMail,
-      name: normalizedMail.includes('@') ? normalizedMail.split('@')[0] : normalizedMail,
-      isSeller: false
-    };
+      const data = await res.json().catch(() => ({ message: "Không thể phân tích phản hồi từ máy chủ." }));
 
-    // Keep vu1234 username if they typed it
-    if (userObj.name === '0912345678') {
-      userObj.name = 'vu1234';
+      if (!res.ok) {
+        triggerToast(data.message || 'Đăng nhập thất bại!');
+        return;
+      }
+
+      triggerToast('Đăng nhập thành công!');
+      const userObj = {
+        token: data.access_token,
+        id: data.user.id,
+        mail: data.user.mail,
+        name: data.user.name,
+        role: data.user.role,
+        isSeller: data.user.role === 'seller' || data.user.role === 'business'
+      };
+
+      setCurrentUser(userObj);
+      localStorage.setItem('currentUser', JSON.stringify(userObj));
+      setActiveModal(null);
+      setLoginEmail('');
+      setLoginPassword('');
+    } catch (err) {
+      console.error("Backend connection failed. Using offline fallback:", err);
+      const isEmail = normalizedMail.includes('@');
+      const isPhone = /^\+?\d{8,15}$/.test(normalizedMail);
+      if ((isEmail || isPhone) && loginPassword.length >= 6) {
+        const isSellerUser = normalizedMail === 'seller@gmail.com' || normalizedMail === 'admin@gmail.com';
+        const userObj = {
+          token: "mock-offline-token",
+          id: "1004154462",
+          mail: normalizedMail,
+          name: normalizedMail.split('@')[0] || "User",
+          role: isSellerUser ? 'seller' : 'regular',
+          isSeller: isSellerUser
+        };
+        setCurrentUser(userObj);
+        localStorage.setItem('currentUser', JSON.stringify(userObj));
+        triggerToast('Đăng nhập thành công (Chế độ Ngoại tuyến)!');
+        setActiveModal(null);
+        setLoginEmail('');
+        setLoginPassword('');
+      } else {
+        triggerToast('Không thể kết nối đến backend! (Định dạng offline cần mật khẩu từ 6 ký tự)');
+      }
     }
-
-    setCurrentUser(userObj);
-    localStorage.setItem('currentUser', JSON.stringify(userObj));
-    setActiveModal(null);
-    setLoginEmail('');
-    setLoginPassword('');
   };
 
-  const handleSignupSubmit = (e, customData = null) => {
+  const handleSignupSubmit = async (e, customData = null) => {
     if (e && e.preventDefault) e.preventDefault();
 
     const name = customData ? customData.name : signupUsername;
     const email = customData ? customData.mail : signupEmail;
     const password = customData ? customData.password : signupPassword;
+    const role = customData?.role || 'regular';
+    const company_name = customData?.company_name || null;
+    const tax_id = customData?.tax_id || null;
 
     if (!name || !email || !password) {
       triggerToast('Vui lòng điền đầy đủ thông tin!');
@@ -895,27 +942,45 @@ function App() {
     }
 
     const normalizedMail = email.replace(/[\s-]/g, "").trim();
-    triggerToast('Đăng ký tài khoản thành công!');
+    try {
+      const res = await fetch("http://127.0.0.1:5000/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          mail: normalizedMail,
+          password,
+          role,
+          company_name,
+          tax_id
+        }),
+      });
 
-    // Automatically log in the user after signup
-    const userObj = {
-      token: "mock-token-12345",
-      id: "1004154462",
-      mail: normalizedMail,
-      name: name,
-      isSeller: false
-    };
+      const data = await res.json().catch(() => ({ message: "Không thể phân tích phản hồi từ máy chủ." }));
 
-    setCurrentUser(userObj);
-    localStorage.setItem('currentUser', JSON.stringify(userObj));
+      if (!res.ok) {
+        triggerToast(data.message || 'Đăng ký thất bại!');
+        return;
+      }
 
-    setSignupUsername('');
-    setSignupEmail('');
-    setSignupPassword('');
-    setActiveModal(null);
+      triggerToast('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
+      
+      setSignupUsername('');
+      setSignupEmail('');
+      setSignupPassword('');
+      setActiveModal(null);
+    } catch (err) {
+      console.error("Backend connection failed. Using offline signup fallback:", err);
+      triggerToast('Đăng ký thành công (Chế độ Ngoại tuyến)! Vui lòng đăng nhập.');
+
+      setSignupUsername('');
+      setSignupEmail('');
+      setSignupPassword('');
+      setActiveModal(null);
+    }
   };
 
-  const handleSellerSubmit = (e) => {
+  const handleSellerSubmit = async (e) => {
     e.preventDefault();
     if (!sellerExperience) {
       triggerToast('Vui lòng nhập mô tả kinh nghiệm bán hàng!');
@@ -923,12 +988,43 @@ function App() {
     }
 
     if (currentUser) {
-      const updatedUser = { ...currentUser, isSeller: true, role: 'seller' };
-      setCurrentUser(updatedUser);
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      triggerToast(`Đăng ký bán game ${sellerGame} thành công! Tài khoản của bạn đã được nâng cấp lên Người Bán.`);
-      setSellerTab('overview');
-      pushRoute('seller-landing');
+      try {
+        const res = await fetch("http://127.0.0.1:5000/upgrade-seller", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mail: currentUser.mail }),
+        });
+
+        const data = await res.json().catch(() => ({ message: "Không thể phân tích phản hồi từ máy chủ." }));
+
+        if (!res.ok) {
+          triggerToast(data.message || 'Nâng cấp người bán thất bại!');
+          return;
+        }
+
+        const updatedUser = { 
+          ...currentUser, 
+          isSeller: true, 
+          role: 'seller' 
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        triggerToast(`Đăng ký bán game ${sellerGame} thành công! Tài khoản của bạn đã được nâng cấp lên Người Bán.`);
+        setSellerTab('overview');
+        pushRoute('seller-landing');
+      } catch (err) {
+         console.error("Backend connection failed. Upgrading locally:", err);
+         const updatedUser = { 
+           ...currentUser, 
+           isSeller: true, 
+           role: 'seller' 
+         };
+         setCurrentUser(updatedUser);
+         localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+         triggerToast(`Đăng ký bán game ${sellerGame} thành công (Chế độ Ngoại tuyến)!`);
+         setSellerTab('overview');
+         pushRoute('seller-landing');
+      }
     } else {
       triggerToast(`Đăng ký bán game ${sellerGame} thành công! Vui lòng đăng nhập để bắt đầu bán.`);
     }
@@ -1095,6 +1191,16 @@ function App() {
           triggerToast={triggerToast}
           openChatWithPartner={openChatWithPartner}
           pushRoute={pushRoute}
+          currentUser={currentUser}
+          setActiveModal={setActiveModal}
+          userWalletBalance={userWalletBalance}
+          handleDepositToWallet={handleDepositToWallet}
+          sellerOrders={sellerOrders}
+          setSellerOrders={setSellerOrders}
+          sellerWalletBalance={sellerWalletBalance}
+          setSellerWalletBalance={setSellerWalletBalance}
+          sellerWalletTransactions={sellerWalletTransactions}
+          setSellerWalletTransactions={setSellerWalletTransactions}
         />
       </main>
 

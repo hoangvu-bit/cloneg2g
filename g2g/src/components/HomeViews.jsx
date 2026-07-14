@@ -260,7 +260,68 @@ export default function HomeViews({
           </div>
 
           <div className="flash-sale-grid">
-            {FLASH_SALE_ITEMS.map((item) => {
+            {(() => {
+              const list = [];
+              
+              // 1. Garena Shells
+              const garenaGame = MOCK_GAMES.find(g => g.id === 'garena-shells');
+              if (garenaGame && garenaGame.items && garenaGame.items.length > 0) {
+                const item = garenaGame.items[2] || garenaGame.items[0];
+                list.push({
+                  id: 'fs-1',
+                  gameId: 'garena-shells',
+                  itemId: item.id,
+                  name: item.name.includes('Sò') || item.name.includes('Package') ? item.name : `${item.name} (Flash Sale)`,
+                  originalPrice: Math.floor(item.price * 1.2),
+                  salePrice: item.price,
+                  stockLeft: item.stock || item.offers || 10,
+                  totalStock: (item.stock || item.offers || 10) + 15,
+                  badge: '-17% OFF',
+                  color: garenaGame.color,
+                  textIcon: garenaGame.textIcon
+                });
+              }
+
+              // 2. Roblox Robux
+              const robloxGame = MOCK_GAMES.find(g => g.id === 'roblox');
+              if (robloxGame && robloxGame.items && robloxGame.items.length > 0) {
+                const item = robloxGame.items[2] || robloxGame.items[0];
+                list.push({
+                  id: 'fs-2',
+                  gameId: 'roblox',
+                  itemId: item.id,
+                  name: item.name.includes('Robux') || item.name.includes('Package') ? item.name : `${item.name} (Flash Sale)`,
+                  originalPrice: Math.floor(item.price * 1.22),
+                  salePrice: item.price,
+                  stockLeft: item.stock || item.offers || 10,
+                  totalStock: (item.stock || item.offers || 10) + 20,
+                  badge: '-18% OFF',
+                  color: robloxGame.color,
+                  textIcon: robloxGame.textIcon
+                });
+              }
+
+              // 3. Steam Wallet Code
+              const steamGame = MOCK_GAMES.find(g => g.id === 'steam-wallet');
+              if (steamGame && steamGame.items && steamGame.items.length > 0) {
+                const item = steamGame.items[1] || steamGame.items[0];
+                list.push({
+                  id: 'fs-3',
+                  gameId: 'steam-wallet',
+                  itemId: item.id,
+                  name: item.name.includes('Steam') || item.name.includes('Package') ? item.name : `${item.name} (Flash Sale)`,
+                  originalPrice: Math.floor(item.price * 1.15),
+                  salePrice: item.price,
+                  stockLeft: item.stock || item.offers || 10,
+                  totalStock: (item.stock || item.offers || 10) + 8,
+                  badge: '-13% OFF',
+                  color: steamGame.color,
+                  textIcon: steamGame.textIcon
+                });
+              }
+
+              return list;
+            })().map((item) => {
               const gameObj = MOCK_GAMES.find((g) => g.id === item.gameId);
               const itemObj = gameObj?.items.find((i) => i.id === item.itemId);
               const percentSold = Math.floor(
@@ -443,14 +504,14 @@ export default function HomeViews({
                 Trò chơi
               </span>
               <span
-                className="g2g-trending-tab-link"
-                onClick={() => triggerToast('Hãy cuộn lên phía trên để xem dịch vụ Game Coaching!')}
+                className={`g2g-trending-tab-link ${activeCategory === 'coaching' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('coaching')}
               >
                 Game Coaching
               </span>
               <span
-                className="g2g-trending-tab-link"
-                onClick={() => triggerToast('Hãy cuộn lên phía trên để xem dịch vụ GamePal!')}
+                className={`g2g-trending-tab-link ${activeCategory === 'gamepal' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('gamepal')}
               >
                 GamePal
               </span>
@@ -461,8 +522,8 @@ export default function HomeViews({
                 Xu Game
               </span>
               <span
-                className="g2g-trending-tab-link"
-                onClick={() => triggerToast('Thị trường Vật phẩm đang cập nhật xu hướng!')}
+                className={`g2g-trending-tab-link ${activeCategory === 'items' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('items')}
               >
                 Vật phẩm
               </span>
@@ -479,20 +540,20 @@ export default function HomeViews({
                 Cày thuê
               </span>
               <span
-                className="g2g-trending-tab-link"
-                onClick={() => triggerToast('Thị trường Trang phục/Skin đang cập nhật xu hướng!')}
+                className={`g2g-trending-tab-link ${activeCategory === 'skin' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('skin')}
               >
                 Skin
               </span>
               <span
-                className="g2g-trending-tab-link"
-                onClick={() => triggerToast('Giao dịch nạp tiền điện thoại đang liên kết đại lý!')}
+                className={`g2g-trending-tab-link ${activeCategory === 'topup' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('topup')}
               >
                 Nạp tiền điện thoại
               </span>
               <span
-                className="g2g-trending-tab-link"
-                onClick={() => triggerToast('Phần mềm bản quyền đang liên kết đại lý!')}
+                className={`g2g-trending-tab-link ${activeCategory === 'software' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('software')}
               >
                 Phần mềm &amp; Ứng dụng
               </span>

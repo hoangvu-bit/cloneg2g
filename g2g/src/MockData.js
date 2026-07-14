@@ -251,6 +251,40 @@ export const TRENDING_BLOCKS = {
     { name: 'Lost Ark Raid Carries', offers: '189 ưu đãi', gameId: 'lost-ark' },
     { name: 'Albion Online Silver Farm', offers: '34 ưu đãi', gameId: 'albion-online' },
     { name: 'Diablo 4 Boosting', offers: '230 ưu đãi', gameId: 'diablo-4' }
+  ],
+  coaching: [
+    { name: 'Dịch vụ Coaching Pro (Valorant)', offers: '6 ưu đãi', gameId: 'valorant-points' },
+    { name: 'HLV Thách Đấu LMHT (League of Legends)', offers: '12 ưu đãi', gameId: 'lol-boosting' },
+    { name: 'Huấn luyện viên Genshin Impact', offers: '5 ưu đãi', gameId: 'genshin-impact' },
+    { name: 'Đội ngũ HLV PUBG', offers: '8 ưu đãi', gameId: 'pubg-mobile' }
+  ],
+  gamepal: [
+    { name: 'Bạn chơi cùng Valorant', offers: '14 ưu đãi', gameId: 'valorant-points' },
+    { name: 'Bạn chơi cùng Liên Quân Mobile', offers: '22 ưu đãi', gameId: 'lien-quan-mobile' },
+    { name: 'Bạn chơi cùng LMHT', offers: '16 ưu đãi', gameId: 'lol-boosting' },
+    { name: 'Bạn chơi cùng CS2', offers: '9 ưu đãi', gameId: 'counter-strike-2' }
+  ],
+  items: [
+    { name: 'Karambit Doppler CS2', offers: '5 ưu đãi', gameId: 'counter-strike-2' },
+    { name: 'Kilowatt Case CS2', offers: '35 ưu đãi', gameId: 'counter-strike-2' },
+    { name: 'Acc Roblox Gold Pack', offers: '14 ưu đãi', gameId: 'roblox' },
+    { name: 'Vật phẩm Divine Orb (PoE 2)', offers: '9 ưu đãi', gameId: 'path-of-exile-2' }
+  ],
+  skin: [
+    { name: 'M4A1-S Printstream CS2', offers: '14 ưu đãi', gameId: 'cs2-skin-cases' },
+    { name: 'AWP Asiimov CS2', offers: '8 ưu đãi', gameId: 'cs2-skin-cases' },
+    { name: 'USP-S Kill Confirmed CS2', offers: '16 ưu đãi', gameId: 'cs2-skin-cases' },
+    { name: 'Skin VIP Liên Quân Mobile', offers: '30 ưu đãi', gameId: 'lien-quan-mobile' }
+  ],
+  topup: [
+    { name: 'Nạp tiền Viettel chiết khấu', offers: '12 ưu đãi', gameId: 'topup' },
+    { name: 'Nạp tiền Vinaphone chiết khấu', offers: '8 ưu đãi', gameId: 'topup' },
+    { name: 'Nạp tiền MobiFone chiết khấu', offers: '6 ưu đãi', gameId: 'topup' }
+  ],
+  software: [
+    { name: 'Key Windows 11 Pro', offers: '25 ưu đãi', gameId: 'software-keys' },
+    { name: 'Key Office 2021 Pro', offers: '19 ưu đãi', gameId: 'software-keys' },
+    { name: 'Kaspersky Premium 1 năm', offers: '12 ưu đãi', gameId: 'software-keys' }
   ]
 };
 

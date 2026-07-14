@@ -82,7 +82,13 @@ export default function Promobanners({ triggerToast, pushRoute, setActiveModal }
             <img src="/gamerprotect_shield.png" alt="GamerProtect Shield" className="shield-img" />
             <button 
               className="btn-orange gp-btn" 
-              onClick={() => handleButtonClick('Tìm hiểu GamerProtect')}
+              onClick={() => {
+                if (setActiveModal) {
+                  setActiveModal('gamerprotect');
+                } else {
+                  handleButtonClick('Tìm hiểu GamerProtect');
+                }
+              }}
             >
               Tìm Hiểu Thêm
             </button>
@@ -97,7 +103,13 @@ export default function Promobanners({ triggerToast, pushRoute, setActiveModal }
             <div className="payment-logo-box">PayPal</div>
             <div className="payment-logo-box">CVS</div>
             <div className="payment-logo-box">DOLLAR GENERAL</div>
-            <div className="payment-logo-more">+ 200 nữa ❯</div>
+            <div 
+              className="payment-logo-more" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => setActiveModal && setActiveModal('payment_methods')}
+            >
+              + 200 nữa ❯
+            </div>
           </div>
         </div>
 

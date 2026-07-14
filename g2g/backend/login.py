@@ -30,17 +30,29 @@ swagger_template = {
 
 swagger = Swagger(app, template=swagger_template)
 
-# Cấu hình kết nối SQL Server của HoangVu
-conn_str = (
+# Cấu hình kết nối SQL Server
+conn_str_original = (
     "Driver={ODBC Driver 17 for SQL Server};"
     "Server=192.168.31.107;"
     "Database=ShopBanHang;"
     "UID=hoanvu;"
-    "PWD=Vu@123123;"
+    "PWD=Vu#123;"
+)
+
+conn_str_local = (
+    "Driver={ODBC Driver 17 for SQL Server};"
+    "Server=.\\SQLEXPRESS;"
+    "Database=ShopBanHang;"
+    "Trusted_Connection=yes;"
 )
 
 def get_db_connection():
-    return pyodbc.connect(conn_str)
+    try:
+        # Thử kết nối từ xa
+        return pyodbc.connect(conn_str_original, timeout=2)
+    except Exception:
+        # Dự phòng kết nối local SQLEXPRESS sử dụng Windows Authentication
+        return pyodbc.connect(conn_str_local)
 
 def is_valid_email(mail):
     return bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", mail or ""))
@@ -50,10 +62,58 @@ def is_valid_phone(phone):
     return bool(re.match(r"^\+?\d{8,15}$", normalized_phone))
 
 def check_db_schema():
+    # 1. Khởi tạo cơ sở dữ liệu nếu chưa tồn tại
+    for conn_str in [conn_str_original, conn_str_local]:
+        try:
+            server = ""
+            auth = ""
+            for part in conn_str.split(';'):
+                if part.lower().startswith('server='):
+                    server = part
+                elif part.lower().startswith('trusted_connection='):
+                    auth = part
+                elif part.lower().startswith('uid='):
+                    auth += ";" + part
+                elif part.lower().startswith('pwd='):
+                    auth += ";" + part
+            
+            master_str = f"Driver={{ODBC Driver 17 for SQL Server}};{server};Database=master;{auth}"
+            m_conn = pyodbc.connect(master_str, autocommit=True, timeout=2)
+            cursor = m_conn.cursor()
+            cursor.execute("SELECT name FROM sys.databases WHERE name = 'ShopBanHang'")
+            if not cursor.fetchone():
+                print("Creating ShopBanHang database...")
+                cursor.execute("CREATE DATABASE ShopBanHang")
+            m_conn.close()
+            break
+        except Exception as e:
+            print(f"Checking database master failed for connection: {e}")
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Tạo bảng Users nếu chưa tồn tại
+        cursor.execute("""
+            SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
+            WHERE TABLE_NAME = 'Users'
+        """)
+        if not cursor.fetchone():
+            print("Creating 'Users' table...")
+            cursor.execute("""
+                CREATE TABLE Users (
+                    Id INT IDENTITY(1,1) PRIMARY KEY,
+                    Name NVARCHAR(255) NOT NULL,
+                    Mail VARCHAR(255) NOT NULL UNIQUE,
+                    Password VARCHAR(255) NOT NULL,
+                    CreatedAt DATETIME DEFAULT GETDATE(),
+                    Role VARCHAR(50) DEFAULT 'regular',
+                    CompanyName NVARCHAR(255),
+                    TaxId VARCHAR(100)
+                )
+            """)
+            conn.commit()
+            
         # Check and add 'Role' column
         cursor.execute("""
             SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
@@ -233,7 +293,7 @@ def login():
         description: Sai email hoặc mật khẩu
     """
     data = request.json
-    print(f"Dữ liệu nhận được: {data}")
+    print(f"Data received: {data}")
     mail = is_valid_account(data.get('mail') or '')
     password = data.get('password') or ''
 
@@ -243,11 +303,14 @@ def login():
     if not password:
         return jsonify({"message": "Nhập mật khẩu"}), 400
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT Id, Name, Password, Role FROM Users WHERE Mail = ?", (mail,))
-    user = cursor.fetchone()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT Id, Name, Password, Role FROM Users WHERE Mail = ?", (mail,))
+        user = cursor.fetchone()
+        conn.close()
+    except Exception as e:
+        return jsonify({"message": f"Lỗi kết nối cơ sở dữ liệu: {str(e)}"}), 500
 
     if user and bcrypt.checkpw(password.encode('utf-8'), user[2].encode('utf-8')):
         payload = {
@@ -276,6 +339,54 @@ def login():
         }), 200
     else:
         return jsonify({"message": "Sai email hoặc mật khẩu"}), 401
+
+@app.route('/upgrade-seller', methods=['POST'])
+def upgrade_seller():
+    """
+    Nâng cấp tài khoản lên người bán (Seller)
+    ---
+    tags:
+      - Authentication
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            mail:
+              type: string
+              example: abc@gmail.com
+    responses:
+      200:
+        description: Nâng cấp thành công
+      400:
+        description: Yêu cầu không hợp lệ
+      444:
+        description: Không tìm thấy tài khoản
+    """
+    data = request.json
+    mail = is_valid_account(data.get('mail') or '')
+
+    if not mail:
+        return jsonify({"message": "Email hoặc số điện thoại không đúng định dạng"}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM Users WHERE Mail = ?", (mail,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"message": "Tài khoản không tồn tại"}), 404
+
+        cursor.execute("UPDATE Users SET Role = 'seller' WHERE Mail = ?", (mail,))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Nâng cấp người bán thành công", "role": "seller"}), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 400
 
 if __name__ == '__main__':
     check_db_schema()

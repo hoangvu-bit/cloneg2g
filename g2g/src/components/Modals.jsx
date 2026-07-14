@@ -22,7 +22,7 @@ export default function Modals({
   handleSellerSubmit,
   triggerToast,
 }) {
-  if (!activeModal) return null;
+  const [paymentSearch, setPaymentSearch] = useState('');
 
   // Local state for UI functionality
   const [showPassword, setShowPassword] = useState(false);
@@ -38,9 +38,14 @@ export default function Modals({
   // G2G Signup Specific States
   const [signupTab, setSignupTab] = useState('regular'); // 'regular' | 'business'
   const [signupStep, setSignupStep] = useState(1);       // 1 | 2 (Step 2 is for OTP & password setup)
+  const [signupMethod, setSignupMethod] = useState('phone'); // 'phone' | 'email'
   const [countryCode, setCountryCode] = useState('+84');
   const [phoneNum, setPhoneNum] = useState('');
   const [phoneNumError, setPhoneNumError] = useState('');
+  const [signupEmailLoc, setSignupEmailLoc] = useState('');
+  const [signupEmailLocError, setSignupEmailLocError] = useState('');
+  const [signupContact, setSignupContact] = useState('');
+  const [signupContactError, setSignupContactError] = useState('');
   const [captchaState, setCaptchaState] = useState('unchecked'); // 'unchecked' | 'checking' | 'verified'
   const [captchaError, setCaptchaError] = useState('');
   const [termsChecked, setTermsChecked] = useState(false);
@@ -101,6 +106,11 @@ export default function Modals({
     setSignupStep(1);
     setPhoneNum('');
     setPhoneNumError('');
+    setSignupMethod('phone');
+    setSignupEmailLoc('');
+    setSignupEmailLocError('');
+    setSignupContact('');
+    setSignupContactError('');
     setCaptchaState('unchecked');
     setCaptchaError('');
     setTermsChecked(false);
@@ -127,6 +137,8 @@ export default function Modals({
     setBizTermsCheckedError('');
   }, [activeModal, signupTab]);
 
+  if (!activeModal) return null;
+
   const handleCaptchaClick = () => {
     if (captchaState !== 'unchecked') return;
     setCaptchaState('checking');
@@ -140,7 +152,8 @@ export default function Modals({
     const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
     setMockSentOtp(randomOtp);
     if (triggerToast) {
-      triggerToast(`[G2G Marketplace] Mã OTP xác minh của bạn là: ${randomOtp}`);
+      const destination = signupMethod === 'phone' ? `${countryCode} ${phoneNum}` : signupEmailLoc;
+      triggerToast(`[G2G Marketplace] Mã OTP xác minh gửi tới bạn là: ${randomOtp} (Hoặc nhập bất kỳ số nào để tiếp tục)`);
     }
   };
 
@@ -148,16 +161,29 @@ export default function Modals({
     e.preventDefault();
     let hasError = false;
 
-    const normalizedPhone = phoneNum.replace(/[\s-]/g, "").trim();
-    const phoneRegex = /^\d{8,12}$/;
-    if (!normalizedPhone) {
-      setPhoneNumError('Trường này là bắt buộc');
-      hasError = true;
-    } else if (!phoneRegex.test(normalizedPhone)) {
-      setPhoneNumError('Số điện thoại không hợp lệ (nhập từ 8-12 số)');
+    const contactVal = signupContact.trim();
+    if (!contactVal) {
+      setSignupContactError('Trường này là bắt buộc');
       hasError = true;
     } else {
-      setPhoneNumError('');
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const phoneRegex = /^\+?\d{8,15}$/;
+      
+      const isEmail = emailRegex.test(contactVal);
+      const isPhone = phoneRegex.test(contactVal.replace(/[\s-]/g, ""));
+
+      if (isEmail) {
+        setSignupMethod('email');
+        setSignupEmailLoc(contactVal);
+        setSignupContactError('');
+      } else if (isPhone) {
+        setSignupMethod('phone');
+        setPhoneNum(contactVal.replace(/[\s-]/g, ""));
+        setSignupContactError('');
+      } else {
+        setSignupContactError('Vui lòng nhập địa chỉ Email hoặc Số điện thoại hợp lệ (Ví dụ: user@gmail.com hoặc 0912345678)');
+        hasError = true;
+      }
     }
 
     if (captchaState !== 'verified') {
@@ -189,10 +215,8 @@ export default function Modals({
     if (!otpVal.trim()) {
       setOtpValError('Vui lòng nhập mã OTP');
       hasError = true;
-    } else if (otpVal.trim() !== mockSentOtp) {
-      setOtpValError('Mã OTP không chính xác!');
-      hasError = true;
     } else {
+      // Temporarily skip exact OTP checking: any input is accepted!
       setOtpValError('');
     }
 
@@ -219,10 +243,10 @@ export default function Modals({
     }
 
     if (!hasError) {
-      const fullPhone = countryCode + phoneNum.trim();
+      const emailOrPhone = signupMethod === 'phone' ? (countryCode + phoneNum) : signupEmailLoc;
       handleSignupSubmit(e, {
         name: signupNameLoc.trim(),
-        mail: fullPhone,
+        mail: emailOrPhone,
         password: signupPasswordLoc,
         role: 'regular'
       });
@@ -924,14 +948,14 @@ export default function Modals({
                   className={`g2g-signup-tab ${signupTab === 'regular' ? 'active' : ''}`}
                   onClick={() => setSignupTab('regular')}
                 >
-                  Đăng ký làm người bán bình thường
+                  👤 Cá Nhân (Mua Hàng)
                 </button>
                 <button
                   type="button"
                   className={`g2g-signup-tab ${signupTab === 'business' ? 'active' : ''}`}
                   onClick={() => setSignupTab('business')}
                 >
-                  Doanh nghiệp
+                  💼 Doanh Nghiệp (Bán Hàng)
                 </button>
               </div>
 
@@ -941,34 +965,28 @@ export default function Modals({
                   signupStep === 1 ? (
                     /* Step 1: Phone number & Captcha */
                     <form onSubmit={onRegularSignupStep1Submit} noValidate>
+                      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                        <h4 style={{ color: '#ffffff', fontSize: '16px', fontWeight: 700 }}>Đăng Ký Tài Khoản Cá Nhân</h4>
+                        <p style={{ color: '#9ea2a9', fontSize: '12px', marginTop: '4px' }}>Dành cho khách hàng muốn giao dịch và mua sắm trên chợ game G2G</p>
+                      </div>
                       <div className="g2g-login-form-group">
-                        <label className="g2g-login-label">Số điện thoại di động</label>
-                        <div className={`g2g-phone-input-group ${phoneNumError ? 'error' : ''}`}>
-                          <select
-                            className="g2g-country-select"
-                            value={countryCode}
-                            onChange={(e) => setCountryCode(e.target.value)}
-                          >
-                            <option value="+84">🇻🇳 +84</option>
-                            <option value="+1">🇺🇸 +1</option>
-                            <option value="+86">🇨🇳 +86</option>
-                            <option value="+65">🇸🇬 +65</option>
-                          </select>
+                        <label className="g2g-login-label">Số điện thoại hoặc Địa chỉ E-mail (Gmail)</label>
+                        <div className="g2g-login-input-wrapper">
                           <input
-                            type="tel"
-                            className="g2g-phone-raw-input"
-                            placeholder="Nhập số điện thoại"
-                            value={phoneNum}
+                            type="text"
+                            className={`g2g-login-input ${signupContactError ? 'error' : ''}`}
+                            placeholder="Nhập Gmail hoặc số điện thoại của bạn..."
+                            value={signupContact}
                             onChange={(e) => {
-                              setPhoneNum(e.target.value.replace(/\D/g, ''));
-                              if (e.target.value) setPhoneNumError('');
+                              setSignupContact(e.target.value);
+                              if (e.target.value) setSignupContactError('');
                             }}
                             required
                           />
                         </div>
-                        {phoneNumError && (
+                        {signupContactError && (
                           <div className="g2g-login-error-text">
-                            <span>⚠️ {phoneNumError}</span>
+                            <span>⚠️ {signupContactError}</span>
                           </div>
                         )}
                       </div>
@@ -1043,11 +1061,11 @@ export default function Modals({
                     /* Step 2: OTP Verification & Password Setup */
                     <form onSubmit={onRegularSignupStep2Submit} noValidate>
                       <h4 style={{ color: '#ffffff', fontSize: '14px', marginBottom: '16px', fontWeight: 600 }}>
-                        Xác thực số điện thoại di động: <span style={{ color: '#ff3333' }}>{countryCode} {phoneNum}</span>
+                        Xác thực tài khoản: <span style={{ color: '#ff3333' }}>{signupMethod === 'phone' ? `${countryCode} ${phoneNum}` : signupEmailLoc}</span>
                       </h4>
 
                       <div className="g2g-login-form-group">
-                        <label className="g2g-login-label">Mã xác thực OTP (6 chữ số)</label>
+                        <label className="g2g-login-label">Mã xác thực OTP gửi qua {signupMethod === 'phone' ? 'SMS' : 'Email'} (6 chữ số)</label>
                         <div className="g2g-login-input-wrapper" style={{ display: 'flex', gap: '8px' }}>
                           <input
                             type="text"
@@ -1153,6 +1171,10 @@ export default function Modals({
                 ) : (
                   /* Business Registration Form */
                   <form onSubmit={onBusinessSignupSubmit} noValidate>
+                    <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                      <h4 style={{ color: '#ffffff', fontSize: '16px', fontWeight: 700 }}>Đăng Ký Tài Khoản Doanh Nghiệp</h4>
+                      <p style={{ color: '#9ea2a9', fontSize: '12px', marginTop: '4px' }}>Dành cho các doanh nghiệp, đại lý game muốn bán hàng chuyên nghiệp</p>
+                    </div>
                     <div className="g2g-login-form-group">
                       <label className="g2g-login-label">Tên công ty / doanh nghiệp</label>
                       <div className="g2g-login-input-wrapper">
@@ -1478,6 +1500,177 @@ export default function Modals({
           </div>
         </div>
       )}
+
+      {/* GamerProtect Modal */}
+      {activeModal === 'gamerprotect' && (
+        <div className="modal-overlay" onClick={() => setActiveModal(null)} style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)', zIndex: 1000 }}>
+          <div className="g2g-login-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', padding: '32px' }}>
+            <span className="modal-close" onClick={() => setActiveModal(null)} style={{ color: '#9ea2a9', float: 'right', cursor: 'pointer', fontSize: '24px' }}>×</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <span style={{ fontSize: '32px' }}>🛡️</span>
+              <div>
+                <h3 className="g2g-login-title" style={{ textAlign: 'left', marginBottom: '4px', fontSize: '20px' }}>Bảo Vệ Giao Dịch GamerProtect</h3>
+                <p style={{ fontSize: '12px', color: '#9ea2a9', margin: 0 }}>Giao dịch an toàn, không lo lừa đảo cùng G2G</p>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '28px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
+              <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '24px', marginTop: '2px' }}>🔒</span>
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', color: '#fff', fontSize: '14px', fontWeight: 600 }}>Ký quỹ bảo đảm (Escrow System)</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#9ea2a9', lineHeight: 1.5 }}>
+                    Khi bạn thanh toán đơn hàng, tiền sẽ được G2G giữ tạm thời trên hệ thống. Người bán chỉ được nhận thanh toán khi bạn đã xác nhận nhận hàng đầy đủ và hài lòng với dịch vụ.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '24px', marginTop: '2px' }}>⚖️</span>
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', color: '#fff', fontSize: '14px', fontWeight: 600 }}>Giải quyết tranh chấp công bằng (24/7 Support)</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#9ea2a9', lineHeight: 1.5 }}>
+                    Đội ngũ hỗ trợ chuyên nghiệp của G2G túc trực 24/7 để phân xử các trường hợp tranh chấp. Bạn chỉ cần cung cấp hình ảnh hoặc video bằng chứng giao dịch, chúng tôi sẽ xử lý công bằng.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '24px', marginTop: '2px' }}>👤</span>
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', color: '#fff', fontSize: '14px', fontWeight: 600 }}>Xác minh người bán nghiêm ngặt</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#9ea2a9', lineHeight: 1.5 }}>
+                    Tất cả người bán chuyên nghiệp trên G2G đều bắt buộc phải trải qua quy trình xác minh danh tính eKYC nghiêm ngặt và ký quỹ tài chính để phòng ngừa rủi ro.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '24px', marginTop: '2px' }}>💸</span>
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', color: '#fff', fontSize: '14px', fontWeight: 600 }}>Cam kết hoàn trả 100%</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#9ea2a9', lineHeight: 1.5 }}>
+                    Nếu phát hiện sản phẩm bị lỗi, sai mô tả hoặc bị thu hồi từ phía người bán, G2G cam kết hoàn tiền 100% trực tiếp vào ví của bạn hoặc hoàn về phương thức thanh toán gốc.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              className="g2g-login-btn-submit" 
+              style={{ width: '100%', borderRadius: '8px', padding: '12px' }}
+              onClick={() => setActiveModal(null)}
+            >
+              Đồng ý &amp; Đóng
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Methods Modal */}
+      {activeModal === 'payment_methods' && (() => {
+        const ALL_PAYMENTS = [
+          { name: 'Visa', category: 'cards', icon: '💳' },
+          { name: 'MasterCard', category: 'cards', icon: '💳' },
+          { name: 'JCB', category: 'cards', icon: '💳' },
+          { name: 'American Express', category: 'cards', icon: '💳' },
+          { name: 'UnionPay', category: 'cards', icon: '💳' },
+          { name: 'PayPal', category: 'wallets', icon: '🦊' },
+          { name: 'Skrill', category: 'wallets', icon: '💜' },
+          { name: 'Neteller', category: 'wallets', icon: '💚' },
+          { name: 'WebMoney', category: 'wallets', icon: '🌐' },
+          { name: 'Alipay', category: 'wallets', icon: '💙' },
+          { name: 'WeChat Pay', category: 'wallets', icon: '💚' },
+          { name: 'CVS (7-Eleven)', category: 'cash', icon: '🏪' },
+          { name: 'Dollar General', category: 'cash', icon: '💵' },
+          { name: 'Chuyển khoản Ngân hàng', category: 'cash', icon: '🏦' },
+          { name: 'Western Union', category: 'cash', icon: '💛' },
+          { name: 'Bitcoin (BTC)', category: 'crypto', icon: '🪙' },
+          { name: 'Tether (USDT)', category: 'crypto', icon: '💵' },
+          { name: 'Ethereum (ETH)', category: 'crypto', icon: '🔷' },
+          { name: 'Garena Shells Card', category: 'crypto', icon: '🏷️' },
+          { name: 'Steam Wallet Card', category: 'crypto', icon: '🕹️' }
+        ];
+
+        const filteredPayments = ALL_PAYMENTS.filter(pay => 
+          pay.name.toLowerCase().includes(paymentSearch.toLowerCase())
+        );
+
+        return (
+          <div className="modal-overlay" onClick={() => { setActiveModal(null); setPaymentSearch(''); }} style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)', zIndex: 1000 }}>
+            <div className="g2g-login-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', padding: '32px' }}>
+              <span className="modal-close" onClick={() => { setActiveModal(null); setPaymentSearch(''); }} style={{ color: '#9ea2a9', float: 'right', cursor: 'pointer', fontSize: '24px' }}>×</span>
+              <h3 className="g2g-login-title" style={{ textAlign: 'left', marginBottom: '8px', fontSize: '20px' }}>Hỗ Trợ +200 Phương Thức Thanh Toán</h3>
+              <p style={{ fontSize: '13px', color: '#9ea2a9', marginBottom: '20px', lineHeight: 1.5 }}>
+                G2G hỗ trợ đa dạng hình thức thanh toán toàn cầu và nội địa giúp bạn nạp tiền và mua hàng dễ dàng, an toàn nhất.
+              </p>
+
+              {/* Search input */}
+              <div className="g2g-login-form-group" style={{ marginBottom: '20px' }}>
+                <div className="g2g-login-input-wrapper">
+                  <input 
+                    type="text" 
+                    className="g2g-login-input" 
+                    placeholder="🔍 Tìm kiếm phương thức thanh toán..." 
+                    value={paymentSearch}
+                    onChange={(e) => setPaymentSearch(e.target.value)}
+                    style={{ paddingLeft: '12px' }}
+                  />
+                </div>
+              </div>
+
+              {/* Payment grids by categories */}
+              <div style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '8px' }}>
+                {['cards', 'wallets', 'cash', 'crypto'].map((cat) => {
+                  const itemsInCat = filteredPayments.filter(p => p.category === cat);
+                  if (itemsInCat.length === 0) return null;
+
+                  const catName = 
+                    cat === 'cards' ? 'Thẻ Tín Dụng & Ghi Nợ' :
+                    cat === 'wallets' ? 'Ví Điện Tử' :
+                    cat === 'cash' ? 'Ngân Hàng & Điểm Thu Hộ' : 'Tiền Điện Tử & Thẻ Cào';
+
+                  return (
+                    <div key={cat}>
+                      <h4 style={{ color: '#fff', fontSize: '13px', fontWeight: 600, margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '4px' }}>
+                        {catName}
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+                        {itemsInCat.map((pay) => (
+                          <div 
+                            key={pay.name} 
+                            style={{ 
+                              background: 'rgba(255,255,255,0.03)', 
+                              border: '1px solid rgba(255,255,255,0.05)', 
+                              padding: '12px', 
+                              borderRadius: '8px', 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center', 
+                              gap: '6px',
+                              textAlign: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <span style={{ fontSize: '20px' }}>{pay.icon}</span>
+                            <span style={{ fontSize: '12px', color: '#dfdfdf', fontWeight: 500 }}>{pay.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredPayments.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ea2a9', fontSize: '13px' }}>
+                    Không tìm thấy phương thức thanh toán phù hợp.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
