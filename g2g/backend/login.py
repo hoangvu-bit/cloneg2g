@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 import secrets
 from urllib.parse import urlparse
@@ -39,6 +39,11 @@ ACCESS_TOKEN_COOKIE = "access_token"
 CSRF_TOKEN_COOKIE = "csrf_token"
 CSRF_HEADER = "X-CSRF-Token"
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+ALLOW_BEARER_AUTH = os.environ.get("ALLOW_BEARER_AUTH", "").lower() == "true"
+VALID_DB_ROLES = {"user", "seller", "admin"}
+TOKEN_NOT_BEFORE = int(datetime.now(timezone.utc).timestamp())
+
+
 class CustomJSONProvider(DefaultJSONProvider):
     def default(self, o):
         if isinstance(o, Decimal):
@@ -57,24 +62,90 @@ swagger_template = {
                 "type": "apiKey",
                 "name": "access_token",
                 "in": "cookie",
-                "description": "JWT duoc gui bang httpOnly cookie sau khi dang nhap"
+                "description": "JWT được gửi bằng cookie httpOnly sau khi đăng nhập"
             },
             "CsrfToken": {
                 "type": "apiKey",
                 "name": "X-CSRF-Token",
                 "in": "header",
-                "description": "Header CSRF cho request thay doi du lieu"
+                "description": "Header CSRF cho request thay đổi dữ liệu"
             },
             "Bearer": {
                 "type": "apiKey",
                 "name": "Authorization",
                 "in": "header",
-                "description": "Nhập: Bearer <Access Token>"
+                "description": "Chỉ dùng khi bật ALLOW_BEARER_AUTH=true"
             }
         }
   }
 
 swagger = Swagger(app, template=swagger_template)
+
+
+SWAGGER_CSRF_SCRIPT = """
+<!-- swagger-csrf-auto-header -->
+<script>
+(function () {
+  function getCookie(name) {
+    return document.cookie
+      .split("; ")
+      .find(function (row) { return row.startsWith(name + "="); })
+      ?.split("=")[1];
+  }
+
+  function csrfToken() {
+    var value = getCookie("csrf_token");
+    return value ? decodeURIComponent(value) : "";
+  }
+
+  var unsafeMethods = { POST: true, PUT: true, PATCH: true, DELETE: true };
+
+  var originalFetch = window.fetch;
+  if (originalFetch) {
+    window.fetch = function (input, init) {
+      init = init || {};
+      var method = (init.method || (input && input.method) || "GET").toUpperCase();
+      if (unsafeMethods[method]) {
+        init.headers = new Headers(init.headers || (input && input.headers) || {});
+        var token = csrfToken();
+        if (token && !init.headers.has("X-CSRF-Token")) {
+          init.headers.set("X-CSRF-Token", token);
+        }
+        init.credentials = init.credentials || "include";
+      }
+      return originalFetch.call(this, input, init);
+    };
+  }
+
+  var originalOpen = XMLHttpRequest.prototype.open;
+  var originalSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (method) {
+    this._csrfMethod = (method || "GET").toUpperCase();
+    return originalOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function () {
+    if (unsafeMethods[this._csrfMethod]) {
+      var token = csrfToken();
+      if (token) {
+        this.setRequestHeader("X-CSRF-Token", token);
+      }
+    }
+    return originalSend.apply(this, arguments);
+  };
+})();
+</script>
+</body>
+"""
+
+
+@app.after_request
+def inject_swagger_csrf(response):
+      if request.path.startswith("/apidocs") and response.content_type.startswith("text/html"):
+          html = response.get_data(as_text=True)
+          if "swagger-csrf-auto-header" not in html and "</body>" in html:
+              response.set_data(html.replace("</body>", SWAGGER_CSRF_SCRIPT))
+              response.headers["Content-Length"] = str(len(response.get_data()))
+      return response
 
 conn_str = os.environ.get("DATABASE_URL") or (
         "Driver={ODBC Driver 17 for SQL Server};"
@@ -87,12 +158,19 @@ def get_db_connection():
       return pyodbc.connect(conn_str)
 
 
-def server_error(message="Loi may chu"):
+def server_error(message="Lỗi máy chủ"):
       return jsonify({"message": message}), 500
 
 
 def to_float(value, default=0.0):
       return float(value) if value is not None else default
+
+
+def normalize_role(role):
+      normalized = (role or "user").strip().lower()
+      if normalized in {"regular", "customer", "member"}:
+          return "user"
+      return normalized if normalized in VALID_DB_ROLES else "user"
 
 
 def get_user_by_id(user_id):
@@ -113,7 +191,7 @@ def row_to_user(row):
           "id": row[0],
           "name": row[1],
           "mail": row[2],
-          "role": row[3] or "user",
+          "role": normalize_role(row[3]),
           "balance": to_float(row[4]),
       }
 
@@ -160,6 +238,45 @@ def clear_auth_cookies(response):
       return response
 
 
+def guest_profile_response(message="Khách, vui lòng đăng nhập"):
+      return jsonify({
+          "message": message,
+          "authenticated": False,
+          "user": {
+              "id": None,
+              "name": "Khách",
+              "mail": None,
+              "role": "guest",
+              "balance": 0,
+          }
+      })
+
+
+def decode_access_token(token):
+      data = jwt.decode(
+          token,
+          app.config["SECRET_KEY"],
+          algorithms=["HS256"]
+      )
+      issued_at = data.get("iat")
+      if issued_at is None or int(issued_at) < TOKEN_NOT_BEFORE:
+          raise jwt.InvalidTokenError("Token được tạo từ phiên máy chủ cũ")
+      return data
+
+
+def current_user_from_request():
+      auth_header = request.headers.get("Authorization", "")
+      token = request.cookies.get(ACCESS_TOKEN_COOKIE)
+      if ALLOW_BEARER_AUTH and auth_header.startswith("Bearer "):
+          token = auth_header.split(" ", 1)[1].strip()
+      if not token:
+          return None, None
+
+      data = decode_access_token(token)
+      current_user = get_user_by_id(data.get("user_id"))
+      return row_to_user(current_user) if current_user else None, token
+
+
 def csrf_protect(f):
       @wraps(f)
       def decorated(*args, **kwargs):
@@ -167,7 +284,7 @@ def csrf_protect(f):
               cookie_token = request.cookies.get(CSRF_TOKEN_COOKIE)
               header_token = request.headers.get(CSRF_HEADER)
               if not cookie_token or not header_token or not secrets.compare_digest(cookie_token, header_token):
-                  return jsonify({"message": "CSRF token khong hop le"}), 403
+                  return jsonify({"message": "CSRF token không hợp lệ"}), 403
           return f(*args, **kwargs)
 
       return decorated
@@ -211,6 +328,16 @@ def is_valid_phone(phone):
       return bool(re.match(r"^(?:\+?84|0)\d{9}$", normalized_phone))
 
 
+def normalize_optional_text(value, max_length):
+      text = (value or "").strip()
+      return text[:max_length] if text else None
+
+
+def normalize_required_text(value, max_length):
+      text = (value or "").strip()
+      return text[:max_length] if text else ""
+
+
 def is_valid_account(mail):
       normalized_mail = re.sub(r"[\s-]", "", mail or "")
       return normalized_mail if is_valid_email(normalized_mail) or is_valid_phone(normalized_mail) else ""
@@ -228,6 +355,19 @@ def is_valid_password(password):
             and re.search(r"\d", password)
             and re.search(r"[^A-Za-z0-9]", password)
         )
+
+
+def verify_password(password, password_hash):
+      if not password or not password_hash:
+          return False
+      if isinstance(password_hash, str):
+          password_hash = password_hash.encode("utf-8")
+      try:
+          return bcrypt.checkpw(password.encode("utf-8"), password_hash)
+      except (TypeError, ValueError):
+          return False
+
+
 def seller_required(f):
       @wraps(f)
       def decorated(user, *args, **kwargs):
@@ -246,7 +386,7 @@ def admin_required(f):
       @wraps(f)
       def decorated(user, *args, **kwargs):
           if (user.get("role") or "").lower() != "admin":
-              return jsonify({"message": "Chi admin moi duoc thuc hien chuc nang nay"}), 403
+              return jsonify({"message": "Chỉ admin mới được thực hiện chức năng này"}), 403
           return f(user, *args, **kwargs)
 
       return decorated
@@ -347,7 +487,7 @@ def register():
         except Exception:
             if conn:
                 conn.rollback()
-            return jsonify({"message": "Khong the xu ly yeu cau"}), 400
+            return jsonify({"message": "Không thể xử lý yêu cầu"}), 400
         finally:
             if conn:
                 conn.close()
@@ -411,10 +551,10 @@ def login():
                 conn.close()
 
         if not user:
-            return jsonify({"message": "Sai email hoac mat khau"}), 401
+            return jsonify({"message": "Sai email hoặc mật khẩu"}), 401
 
         balance_val = float(user[4]) if user[4] is not None else 0.0
-        if user and bcrypt.checkpw(password.encode('utf-8'), user[2].encode('utf-8')):
+        if verify_password(password, user[2]):
 
           token = create_access_token(user[0])
 
@@ -424,7 +564,7 @@ def login():
                 "id": user[0],
                 "mail": mail,
                 "name": user[1],
-                "role": user[3] or 'user',
+                "role": normalize_role(user[3]),
                 "balance": balance_val
             }
         })
@@ -433,33 +573,24 @@ def login():
           return response, 200
 
         else:
+            logger.warning("login_failed_invalid_password_or_hash", extra={"user_id": user[0], "mail": mail})
             return jsonify({"message": "Sai email hoặc mật khẩu"}), 401
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
-        token = request.cookies.get(ACCESS_TOKEN_COOKIE)
-        if auth_header.startswith("Bearer "):
-            token = auth_header.split(" ", 1)[1].strip()
-        if not token:
-            return jsonify({"message": "Thiếu token"}), 401
-
         try:
-            data = jwt.decode(
-                token,
-                app.config["SECRET_KEY"],
-                algorithms=["HS256"]
-            )
+            current_user, token = current_user_from_request()
+            if not token:
+                return jsonify({"message": "Thiếu token"}), 401
         except jwt.ExpiredSignatureError:
-            return jsonify({"message": "Token da het han"}), 401
+            return jsonify({"message": "Token đã hết hạn"}), 401
         except jwt.InvalidTokenError:
-            return jsonify({"message": "Token khong hop le"}), 401
+            return jsonify({"message": "Token không hợp lệ"}), 401
 
-        current_user = get_user_by_id(data.get("user_id"))
         if not current_user:
-            return jsonify({"message": "Khong tim thay nguoi dung"}), 404
+            return jsonify({"message": "Không tìm thấy người dùng"}), 404
 
-        return f(row_to_user(current_user), *args, **kwargs)
+        return f(current_user, *args, **kwargs)
 
     return decorated
 
@@ -475,20 +606,97 @@ def register_seller(user):
         - Authentication
 
       security:
-        - Bearer: []
+        - CookieAuth: []
+        - CsrfToken: []
+
+      consumes:
+        - application/json
+
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required:
+              - shop_name
+              - address
+              - phone
+              - id_card_front_url
+              - id_card_back_url
+            properties:
+              shop_name:
+                type: string
+                example: Shop Acc Game Uy Tin
+              address:
+                type: string
+                example: 123 Nguyen Trai, Quan 1, TP HCM
+              phone:
+                type: string
+                example: "0912345678"
+              id_card_front_url:
+                type: string
+                example: https://example.com/cccd-front.jpg
+              id_card_back_url:
+                type: string
+                example: https://example.com/cccd-back.jpg
+              note:
+                type: string
+                example: Dang ky ban hang tren he thong
 
       responses:
+        202:
+          description: Đã tạo yêu cầu seller, chờ admin duyệt
+
+        400:
+          description: Thiếu hoặc sai thông tin đăng ký
+
         200:
-          description: Cập nhật role thành công
+          description: Tài khoản đã là seller
 
         401:
           description: Chưa đăng nhập hoặc token không hợp lệ
       """
+      conn = None
       try:
+          data = request.get_json(silent=True) or {}
+          shop_name = normalize_required_text(data.get("shop_name") or data.get("shopName"), 150)
+          address = normalize_required_text(data.get("address"), 300)
+          phone = normalize_required_text(data.get("phone"), 30)
+          id_card_front_url = normalize_required_text(
+              data.get("id_card_front_url") or data.get("idCardFrontUrl"),
+              500,
+          )
+          id_card_back_url = normalize_required_text(
+              data.get("id_card_back_url") or data.get("idCardBackUrl"),
+              500,
+          )
+          note = normalize_optional_text(data.get("note"), 500)
+
+          if not shop_name:
+              return jsonify({"message": "Vui lòng nhập tên shop"}), 400
+          if len(shop_name) < 3:
+              return jsonify({"message": "Tên shop phải có ít nhất 3 ký tự"}), 400
+          if not address:
+              return jsonify({"message": "Vui lòng nhập địa chỉ shop"}), 400
+          if len(address) < 10:
+              return jsonify({"message": "Địa chỉ shop phải có ít nhất 10 ký tự"}), 400
+          if not phone:
+              return jsonify({"message": "Vui lòng nhập số điện thoại"}), 400
+          if not is_valid_phone(phone):
+              return jsonify({"message": "Số điện thoại không đúng định dạng"}), 400
+          if not id_card_front_url:
+              return jsonify({"message": "Vui lòng gửi ảnh căn cước mặt trước"}), 400
+          if not is_valid_http_url(id_card_front_url):
+              return jsonify({"message": "URL ảnh căn cước mặt trước không hợp lệ"}), 400
+          if not id_card_back_url:
+              return jsonify({"message": "Vui lòng gửi ảnh căn cước mặt sau"}), 400
+          if not is_valid_http_url(id_card_back_url):
+              return jsonify({"message": "URL ảnh căn cước mặt sau không hợp lệ"}), 400
+
           conn = get_db_connection()
           cursor = conn.cursor()
 
-          # Lấy thông tin người dùng
           cursor.execute(
               "SELECT Id, Name, Mail, Role, Balance FROM Users WHERE Id = ?",
               (user["id"],)
@@ -496,73 +704,324 @@ def register_seller(user):
           existing_user = cursor.fetchone()
 
           if not existing_user:
-              conn.close()
               return jsonify({"message": "Không tìm thấy người dùng"}), 404
 
-          # Nếu chưa phải seller thì cập nhật
-          if (existing_user[3] or "").lower() != "seller":
-              conn.close()
+          existing_role = normalize_role(existing_user[3])
+          if existing_role == "seller":
+              new_token = create_access_token(existing_user[0])
+              response = jsonify({
+                  "message": "Tài khoản đã là người bán",
+                  "user": {
+                      "id": existing_user[0],
+                      "name": existing_user[1],
+                      "mail": existing_user[2],
+                      "role": "seller",
+                      "balance": float(existing_user[4]) if existing_user[4] is not None else 0.0
+                  }
+              })
+              set_access_cookie(response, new_token)
+              set_csrf_cookie(response)
+              return response, 200
+
+          cursor.execute("""
+              SELECT TOP 1 Id, Status, CreatedAt
+              FROM SellerRequests
+              WHERE UserId = ? AND Status = ?
+              ORDER BY CreatedAt DESC, Id DESC
+          """, (user["id"], "pending"))
+          pending_request = cursor.fetchone()
+          if pending_request:
               return jsonify({
-                  "message": "Yeu cau dang ky nguoi ban da duoc ghi nhan, can admin duyet truoc khi kich hoat"
+                  "message": "Bạn đã gửi yêu cầu đăng ký người bán, vui lòng chờ admin duyệt",
+                  "seller_request": {
+                      "id": pending_request[0],
+                      "status": pending_request[1],
+                      "createdAt": pending_request[2].isoformat() if pending_request[2] else None,
+                  }
               }), 202
 
-          conn.close()
+          cursor.execute("""
+              INSERT INTO SellerRequests (
+                  UserId,
+                  ShopName,
+                  Address,
+                  Phone,
+                  IdCardFrontUrl,
+                  IdCardBackUrl,
+                  Note,
+                  Status,
+                  CreatedAt
+              )
+              OUTPUT INSERTED.Id
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          """, (
+              user["id"],
+              shop_name,
+              address,
+              phone,
+              id_card_front_url,
+              id_card_back_url,
+              note,
+              "pending",
+              datetime.now(),
+          ))
+          request_id = cursor.fetchone()[0]
+          conn.commit()
 
-          # Tạo Access Token mới với role seller
-          new_token = create_access_token(existing_user[0])
-
-          response = jsonify({
-              "message": "Đăng ký người bán thành công",
-              "user": {
-                  "id": existing_user[0],
-                  "name": existing_user[1],
-                  "mail": existing_user[2],
-                  "role": "seller",
-                  "balance": float(existing_user[4]) if existing_user[4] is not None else 0.0
+          return jsonify({
+              "message": "Yêu cầu đăng ký người bán đã được ghi nhận, cần admin duyệt trước khi kích hoạt",
+              "seller_request": {
+                  "id": request_id,
+                  "userId": user["id"],
+                  "shopName": shop_name,
+                  "address": address,
+                  "phone": phone,
+                  "idCardFrontUrl": id_card_front_url,
+                  "idCardBackUrl": id_card_back_url,
+                  "note": note,
+                  "status": "pending",
               }
-          })
-          set_access_cookie(response, new_token)
-          set_csrf_cookie(response)
-          return response, 200
+          }), 202
 
       except Exception:
-          return jsonify({"message": "Khong the xu ly yeu cau"}), 400
+          if conn:
+              conn.rollback()
+          logger.exception("register_seller_failed")
+          return jsonify({"message": "Không thể xử lý yêu cầu"}), 400
+      finally:
+          if conn:
+              conn.close()
 
 
 @app.route("/logout", methods=["POST"])
-@csrf_protect
 def logout():
-      response = jsonify({"message": "Dang xuat thanh cong"})
+      response = jsonify({"message": "Đăng xuất thành công"})
       clear_auth_cookies(response)
       return response, 200
 
 
 @app.route("/csrf-token", methods=["GET"])
 def csrf_token():
-      response = jsonify({"message": "CSRF token da duoc cap"})
+      response = jsonify({"message": "CSRF token đã được cấp"})
       set_csrf_cookie(response)
       return response, 200
 
 
-@app.route("/admin/sellers/<int:user_id>/approve", methods=["POST"])
+@app.route("/admin/seller-requests", methods=["GET"])
 @token_required
-@csrf_protect
 @admin_required
-def approve_seller(user, user_id):
+def list_seller_requests(user):
+      """
+      Admin xem danh sách yêu cầu đăng ký người bán
+      ---
+      tags:
+        - Admin Sellers
+      security:
+        - CookieAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          type: string
+          enum: [pending, approved, rejected, cancelled, all]
+          default: pending
+          description: Lọc yêu cầu theo trạng thái
+      responses:
+        200:
+          description: Danh sách yêu cầu đăng ký seller
+        400:
+          description: Trạng thái không hợp lệ
+        403:
+          description: Không phải admin
+      """
+      status = (request.args.get("status") or "pending").strip().lower()
+      allowed_statuses = {"pending", "approved", "rejected", "cancelled", "all"}
+      if status not in allowed_statuses:
+          return jsonify({"message": "Trạng thái không hợp lệ"}), 400
+
       conn = None
       try:
           conn = get_db_connection()
           cursor = conn.cursor()
-          cursor.execute("UPDATE Users SET Role = ? WHERE Id = ?", ("seller", user_id))
+          base_query = """
+              SELECT TOP 100
+                  sr.Id,
+                  sr.UserId,
+                  u.Name,
+                  u.Mail,
+                  sr.ShopName,
+                  sr.Address,
+                  sr.Phone,
+                  sr.IdCardFrontUrl,
+                  sr.IdCardBackUrl,
+                  sr.Note,
+                  sr.Status,
+                  sr.CreatedAt,
+                  sr.ApprovedBy,
+                  sr.ApprovedAt
+              FROM SellerRequests sr
+              LEFT JOIN Users u ON u.Id = sr.UserId
+          """
+          if status == "all":
+              cursor.execute(base_query + " ORDER BY sr.CreatedAt DESC, sr.Id DESC")
+          else:
+              cursor.execute(base_query + " WHERE sr.Status = ? ORDER BY sr.CreatedAt DESC, sr.Id DESC", (status,))
+
+          rows = cursor.fetchall()
+          seller_requests = []
+          for row in rows:
+              seller_requests.append({
+                  "id": row[0],
+                  "userId": row[1],
+                  "userName": row[2],
+                  "userMail": row[3],
+                  "shopName": row[4],
+                  "address": row[5],
+                  "phone": row[6],
+                  "idCardFrontUrl": row[7],
+                  "idCardBackUrl": row[8],
+                  "note": row[9],
+                  "status": row[10],
+                  "createdAt": row[11].isoformat() if row[11] else None,
+                  "approvedBy": row[12],
+                  "approvedAt": row[13].isoformat() if row[13] else None,
+              })
+
+          return jsonify({"seller_requests": seller_requests}), 200
+      except Exception:
+          logger.exception("list_seller_requests_failed")
+          return server_error()
+      finally:
+          if conn:
+              conn.close()
+
+
+@app.route("/admin/seller-requests/<int:request_id>/approve", methods=["POST"])
+@token_required
+@csrf_protect
+@admin_required
+def approve_seller_request(user, request_id):
+      """
+      Admin duyệt yêu cầu đăng ký người bán
+      ---
+      tags:
+        - Admin Sellers
+      security:
+        - CookieAuth: []
+        - CsrfToken: []
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          type: integer
+          description: Id của SellerRequests cần duyệt
+      responses:
+        200:
+          description: Đã duyệt, user được chuyển role thành seller
+        400:
+          description: Yêu cầu đã được xử lý
+        403:
+          description: Không phải admin hoặc CSRF không hợp lệ
+        404:
+          description: Không tìm thấy yêu cầu
+      """
+      conn = None
+      try:
+          conn = get_db_connection()
+          cursor = conn.cursor()
+          cursor.execute("""
+              SELECT Id, UserId, Status
+              FROM SellerRequests
+              WHERE Id = ?
+          """, (request_id,))
+          seller_request = cursor.fetchone()
+          if not seller_request:
+              return jsonify({"message": "Không tìm thấy yêu cầu đăng ký người bán"}), 404
+          if (seller_request[2] or "").lower() != "pending":
+              return jsonify({"message": "Yêu cầu đăng ký người bán đã được xử lý"}), 400
+
+          cursor.execute(
+              "UPDATE Users SET Role = ? WHERE Id = ?",
+              ("seller", seller_request[1]),
+          )
           if cursor.rowcount == 0:
               conn.rollback()
-              return jsonify({"message": "Khong tim thay nguoi dung"}), 404
+              return jsonify({"message": "Không tìm thấy người dùng"}), 404
+
+          cursor.execute("""
+              UPDATE SellerRequests
+              SET Status = ?, ApprovedBy = ?, ApprovedAt = ?
+              WHERE Id = ? AND Status = ?
+          """, ("approved", user["id"], datetime.now(), request_id, "pending"))
+          if cursor.rowcount == 0:
+              conn.rollback()
+              return jsonify({"message": "Yêu cầu đăng ký người bán đã được xử lý trước đó"}), 409
+
           conn.commit()
-          return jsonify({"message": "Da duyet nguoi ban", "user_id": user_id}), 200
+          return jsonify({
+              "message": "Đã duyệt người bán",
+              "seller_request_id": request_id,
+              "user_id": seller_request[1],
+          }), 200
       except Exception:
           if conn:
               conn.rollback()
-          logger.exception("approve_seller_failed")
+          logger.exception("approve_seller_request_failed")
+          return server_error()
+      finally:
+          if conn:
+              conn.close()
+
+
+@app.route("/admin/seller-requests/<int:request_id>/reject", methods=["POST"])
+@token_required
+@csrf_protect
+@admin_required
+def reject_seller_request(user, request_id):
+      """
+      Admin từ chối yêu cầu đăng ký người bán
+      ---
+      tags:
+        - Admin Sellers
+      security:
+        - CookieAuth: []
+        - CsrfToken: []
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          type: integer
+          description: Id của SellerRequests cần từ chối
+      responses:
+        200:
+          description: Đã từ chối yêu cầu
+        403:
+          description: Không phải admin hoặc CSRF không hợp lệ
+        404:
+          description: Không tìm thấy yêu cầu pending
+      """
+      conn = None
+      try:
+          conn = get_db_connection()
+          cursor = conn.cursor()
+          cursor.execute("""
+              UPDATE SellerRequests
+              SET Status = ?, ApprovedBy = ?, ApprovedAt = ?
+              WHERE Id = ? AND Status = ?
+          """, ("rejected", user["id"], datetime.now(), request_id, "pending"))
+          if cursor.rowcount == 0:
+              conn.rollback()
+              return jsonify({"message": "Không tìm thấy yêu cầu pending hoặc yêu cầu đã được xử lý"}), 404
+
+          conn.commit()
+          return jsonify({
+              "message": "Đã từ chối yêu cầu đăng ký người bán",
+              "seller_request_id": request_id,
+          }), 200
+      except Exception:
+          if conn:
+              conn.rollback()
+          logger.exception("reject_seller_request_failed")
           return server_error()
       finally:
           if conn:
@@ -624,7 +1083,7 @@ def get_products():
           }), 200
         except Exception:
           return jsonify({
-            "message": "Loi may chu"
+            "message": "Lỗi máy chủ"
           }), 500
 
 @app.route("/products", methods=["POST"])
@@ -639,7 +1098,7 @@ def create_product(user):
       - Products
 
     security:
-      - Bearer: []
+      - CookieAuth: []
 
     consumes:
       - application/json
@@ -707,12 +1166,13 @@ def create_product(user):
             "message":"Chưa nhập số lượng"
         }),400
     if len(title) > 150:
-        return jsonify({"message": "Ten san pham qua dai"}), 400
+        return jsonify({"message": "Tên sản phẩm quá dài"}), 400
     if len(description) > 2000:
-        return jsonify({"message": "Mo ta san pham qua dai"}), 400
+        return jsonify({"message": "Mô tả sản phẩm quá dài"}), 400
     if not is_valid_http_url(image):
-        return jsonify({"message": "URL hinh anh khong hop le"}), 400
+        return jsonify({"message": "URL hình ảnh không hợp lệ"}), 400
 
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -740,26 +1200,34 @@ def create_product(user):
             image
         ))
         conn.commit()
-        conn.close()
         return jsonify({
             "message":"Đăng sản phẩm thành công"
         }),201
     except Exception:
+        if conn:
+            conn.rollback()
+        logger.exception("create_product_failed")
         return server_error()
+    finally:
+        if conn:
+            conn.close()
 @app.route("/deposit", methods=["POST"])
 @token_required
 @csrf_protect
 def deposit(user):
     """
-    Nạp tiền vào tài khoản
+    Tạo yêu cầu nạp tiền để admin xét duyệt
     ---
     tags:
-      - Người dùng
+      - Payments
     security:
-      - Bearer: []
+      - CookieAuth: []
+      - CsrfToken: []
+    description: Tạo bản ghi PaymentRequests trạng thái pending. API này không cộng tiền trực tiếp vào Balance.
     parameters:
       - in: body
         name: body
+        required: true
         schema:
           type: object
           required:
@@ -767,12 +1235,21 @@ def deposit(user):
           properties:
             amount:
               type: number
-              description: Số tiền muốn nạp
+              example: 100000
+              description: Số tiền muốn nạp, phải lớn hơn 0
+            provider:
+              type: string
+              example: manual
+              description: Kênh thanh toán hoặc ghi chú nguồn nạp tiền
     responses:
-      200:
-        description: Nạp tiền thành công
+      202:
+        description: Đã tạo yêu cầu nạp tiền, chờ admin xét duyệt
       400:
-        description: Số tiền không hợp lệ
+        description: Dữ liệu không hợp lệ
+      401:
+        description: Chưa đăng nhập hoặc token không hợp lệ
+      403:
+        description: CSRF token không hợp lệ
       500:
         description: Lỗi máy chủ
     """
@@ -780,11 +1257,11 @@ def deposit(user):
     try:
         data = request.get_json(silent=True)
         if not data:
-            return jsonify({"message": "Thieu du lieu"}), 400
+            return jsonify({"message": "Thiếu dữ liệu"}), 400
         amount = parse_positive_decimal(data.get("amount"))
         provider = (data.get("provider") or "manual").strip()[:50]
         if amount is None:
-            return jsonify({"message": "So tien nap phai la so duong"}), 400
+            return jsonify({"message": "Số tiền nạp phải là số dương"}), 400
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -796,7 +1273,7 @@ def deposit(user):
         payment_id = cursor.fetchone()[0]
         conn.commit()
         return jsonify({
-            "message": "Yeu cau nap tien da duoc tao va dang cho duyet",
+            "message": "Yêu cầu nạp tiền đã được tạo và đang chờ duyệt",
             "payment_request": {
                 "id": payment_id,
                 "amount": float(amount),
@@ -813,52 +1290,37 @@ def deposit(user):
         if conn:
             conn.close()
 
-    if os.environ.get("ENABLE_UNSAFE_DEPOSIT", "").lower() != "true":
-        return jsonify({"message": "Nap tien truc tiep da bi tat; hay dung cong thanh toan hoac webhook tin cay"}), 403
-
-    try:
-        data = request.get_json(silent=True)
-        if not data:
-            return jsonify({"message": "Thieu du lieu"}), 400
-        amount = data.get("amount")
-
-        # Kiểm tra số tiền hợp lệ
-        if amount is None or not isinstance(amount, (int, float)) or amount <= 0:
-            return jsonify({"message": "Số tiền nạp phải là một số dương"}), 400
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Cập nhật số dư trong CSDL (cộng dồn vào số dư hiện tại)
-        cursor.execute("""
-            UPDATE Users
-            SET Balance = Balance + ?
-            WHERE Id = ?
-        """, (amount, user["id"]))
-
-        conn.commit()
-        
-        # Kiểm tra xem có bản ghi nào được cập nhật không
-        if cursor.rowcount == 0:
-            conn.close()
-            return jsonify({"message": "Người dùng không tồn tại"}), 404
-
-        conn.close()
-
-        return jsonify({
-            "message": "Nạp tiền thành công",
-            "amount_added": amount
-        }), 200
-
-    except Exception:
-        return server_error()
-
-
 @app.route("/admin/payment-requests/<int:payment_id>/approve", methods=["POST"])
 @token_required
 @csrf_protect
 @admin_required
 def approve_payment_request(user, payment_id):
+    """
+    Admin duyệt yêu cầu nạp tiền
+    ---
+    tags:
+      - Admin Payments
+    security:
+      - CookieAuth: []
+      - CsrfToken: []
+    parameters:
+      - in: path
+        name: payment_id
+        required: true
+        type: integer
+        description: Id của PaymentRequests cần duyệt
+    responses:
+      200:
+        description: Đã duyệt, cộng Balance cho user và ghi BalanceAuditLogs
+      400:
+        description: Yêu cầu không ở trạng thái pending
+      403:
+        description: Không phải admin hoặc CSRF không hợp lệ
+      404:
+        description: Không tìm thấy yêu cầu nạp tiền
+      409:
+        description: Yêu cầu đã được xử lý trước đó
+    """
     conn = None
     try:
         conn = get_db_connection()
@@ -870,9 +1332,9 @@ def approve_payment_request(user, payment_id):
         """, (payment_id,))
         payment = cursor.fetchone()
         if not payment:
-            return jsonify({"message": "Khong tim thay yeu cau nap tien"}), 404
+            return jsonify({"message": "Không tìm thấy yêu cầu nạp tiền"}), 404
         if (payment[3] or "").lower() != "pending":
-            return jsonify({"message": "Yeu cau nap tien khong o trang thai pending"}), 400
+            return jsonify({"message": "Yêu cầu nạp tiền không ở trạng thái pending"}), 400
 
         cursor.execute(
             "UPDATE Users SET Balance = Balance + ? WHERE Id = ?",
@@ -880,18 +1342,21 @@ def approve_payment_request(user, payment_id):
         )
         if cursor.rowcount == 0:
             conn.rollback()
-            return jsonify({"message": "Khong tim thay nguoi dung"}), 404
+            return jsonify({"message": "Không tìm thấy người dùng"}), 404
         cursor.execute("""
             UPDATE PaymentRequests
             SET Status = ?, ApprovedBy = ?, ApprovedAt = ?
             WHERE Id = ? AND Status = ?
         """, ("approved", user["id"], datetime.now(), payment_id, "pending"))
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return jsonify({"message": "Yêu cầu nạp tiền đã được xử lý trước đó"}), 409
         cursor.execute("""
             INSERT INTO BalanceAuditLogs (UserId, Amount, Action, ReferenceType, ReferenceId, CreatedBy, CreatedAt)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (payment[1], payment[2], "topup_approved", "PaymentRequests", payment_id, user["id"], datetime.now()))
         conn.commit()
-        return jsonify({"message": "Da duyet nap tien", "payment_id": payment_id}), 200
+        return jsonify({"message": "Đã duyệt nạp tiền", "payment_id": payment_id}), 200
     except Exception:
         if conn:
             conn.rollback()
@@ -900,9 +1365,105 @@ def approve_payment_request(user, payment_id):
     finally:
         if conn:
             conn.close()
-@app.route("/profile", methods=["GET"])
+
+
+@app.route("/admin/payment-requests", methods=["GET"])
 @token_required
-def profile(user):
+@admin_required
+def list_payment_requests(user):
+    """
+    Admin xem danh sách yêu cầu nạp tiền
+    ---
+    tags:
+      - Admin Payments
+    security:
+      - CookieAuth: []
+    parameters:
+      - in: query
+        name: status
+        required: false
+        type: string
+        enum: [pending, approved, rejected, cancelled, all]
+        default: pending
+        description: Lọc theo trạng thái yêu cầu
+    responses:
+      200:
+        description: Danh sách PaymentRequests gần nhất
+      400:
+        description: Trạng thái không hợp lệ
+      403:
+        description: Không phải admin
+    """
+    status = (request.args.get("status") or "pending").strip().lower()
+    allowed_statuses = {"pending", "approved", "rejected", "cancelled", "all"}
+    if status not in allowed_statuses:
+        return jsonify({"message": "Trạng thái không hợp lệ"}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if status == "all":
+            cursor.execute("""
+                SELECT TOP 100
+                    pr.Id,
+                    pr.UserId,
+                    u.Name,
+                    u.Mail,
+                    pr.Amount,
+                    pr.Provider,
+                    pr.Status,
+                    pr.CreatedAt,
+                    pr.ApprovedBy,
+                    pr.ApprovedAt
+                FROM PaymentRequests pr
+                LEFT JOIN Users u ON u.Id = pr.UserId
+                ORDER BY pr.CreatedAt DESC, pr.Id DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT TOP 100
+                    pr.Id,
+                    pr.UserId,
+                    u.Name,
+                    u.Mail,
+                    pr.Amount,
+                    pr.Provider,
+                    pr.Status,
+                    pr.CreatedAt,
+                    pr.ApprovedBy,
+                    pr.ApprovedAt
+                FROM PaymentRequests pr
+                LEFT JOIN Users u ON u.Id = pr.UserId
+                WHERE pr.Status = ?
+                ORDER BY pr.CreatedAt DESC, pr.Id DESC
+            """, (status,))
+
+        rows = cursor.fetchall()
+        requests = []
+        for row in rows:
+            requests.append({
+                "id": row[0],
+                "userId": row[1],
+                "userName": row[2],
+                "userMail": row[3],
+                "amount": float(row[4]) if row[4] is not None else 0,
+                "provider": row[5],
+                "status": row[6],
+                "createdAt": row[7].isoformat() if row[7] else None,
+                "approvedBy": row[8],
+                "approvedAt": row[9].isoformat() if row[9] else None,
+            })
+
+        return jsonify({"payment_requests": requests}), 200
+    except Exception:
+        logger.exception("list_payment_requests_failed")
+        return server_error()
+    finally:
+        if conn:
+            conn.close()
+@app.route("/profile", methods=["GET"])
+def profile():
     """
     Lấy thông tin người dùng
     ---
@@ -910,17 +1471,24 @@ def profile(user):
       - Người dùng
 
     security:
-      - Bearer: []
+      - CookieAuth: []
 
     responses:
       200:
-        description: Thành công
-      401:
-        description: Token không hợp lệ
-      404:
-        description: Không tìm thấy người dùng
+        description: Trả thông tin người dùng nếu đã đăng nhập, nếu không trả trạng thái khách
+      500:
+        description: Lỗi máy chủ
     """
+    token = request.cookies.get(ACCESS_TOKEN_COOKIE)
+    conn = None
     try:
+        user, _ = current_user_from_request()
+        if not user:
+            response = guest_profile_response()
+            if token:
+                clear_auth_cookies(response)
+            return response, 200
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -931,35 +1499,45 @@ def profile(user):
         """, (user["id"],))
 
         row = cursor.fetchone()
-        conn.close()
 
         if not row:
-            return jsonify({"message": "Không tìm thấy người dùng"}), 404
+            response = guest_profile_response("Khách, vui lòng đăng nhập")
+            clear_auth_cookies(response)
+            return response, 200
 
         return jsonify({
             "message": "Lấy thông tin thành công",
+            "authenticated": True,
             "user": {
                 "id": row[0],
                 "name": row[1],
                 "mail": row[2],
-                "role": row[3],
+                "role": normalize_role(row[3]),
                 "balance": float(row[4]) if row[4] is not None else 0
             }
         }), 200
 
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        response = guest_profile_response()
+        clear_auth_cookies(response)
+        return response, 200
     except Exception:
         return server_error()
+    finally:
+        if conn:
+            conn.close()
 @app.route('/purchase', methods=['POST'])
 @token_required
 @csrf_protect
 def purchase(user):
     """
-    API Mua Hàng
+    API Mua hàng
     ---
     tags:
       - Transaction
     security:
-      - Bearer: []
+      - CookieAuth: []
+      - CsrfToken: []
     description: Thực hiện mua sản phẩm, trừ tiền và trừ số lượng kho
     parameters:
       - name: body
@@ -983,7 +1561,7 @@ def purchase(user):
     user_id = user.get("id") 
     data = request.get_json(silent=True)
     if not data:
-        return jsonify({"error": "Thieu du lieu"}), 400
+        return jsonify({"error": "Thiếu dữ liệu"}), 400
 
     product_id = parse_positive_int(data.get('product_id'))
     quantity = parse_positive_int(data.get('quantity'))
@@ -1014,7 +1592,7 @@ def purchase(user):
 
         # 3. Kiểm tra logic nghiệp vụ
         if seller_id == user_id:
-            return jsonify({"error": "Khong the mua san pham cua chinh minh"}), 400
+            return jsonify({"error": "Không thể mua sản phẩm của chính mình"}), 400
         if stock < quantity:
             return jsonify({"error": "Không đủ số lượng hàng"}), 400
         if balance < total_cost:
@@ -1026,14 +1604,14 @@ def purchase(user):
         )
         if cursor.rowcount == 0:
             conn.rollback()
-            return jsonify({"error": "Khong du so luong hang"}), 400
+            return jsonify({"error": "Không đủ số lượng hàng"}), 400
         cursor.execute(
             "UPDATE Users SET Balance = Balance - ? WHERE Id = ? AND Balance >= ?",
             (total_cost, user_id, total_cost)
         )
         if cursor.rowcount == 0:
             conn.rollback()
-            return jsonify({"error": "So du khong du"}), 400
+            return jsonify({"error": "Số dư không đủ"}), 400
         cursor.execute("INSERT INTO Transactions (UserId, ProductId, Quantity, TotalPrice) VALUES (?, ?, ?, ?)", 
                        (user_id, product_id, quantity, total_cost))
         conn.commit()
@@ -1042,7 +1620,7 @@ def purchase(user):
         
     except Exception:
         conn.rollback()
-        return jsonify({"error": "Loi may chu"}), 500
+        return jsonify({"error": "Lỗi máy chủ"}), 500
     finally:
         conn.close()     
 if __name__ == "__main__":
@@ -1052,3 +1630,4 @@ if __name__ == "__main__":
         port=int(os.environ.get("PORT", 5000)),
         debug=debug_enabled
     )
+
