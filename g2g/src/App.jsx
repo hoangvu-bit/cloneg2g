@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import "./App.css";
 import LoginModal from "./login.jsx";
 import RegisterSeller from "./RegisterSeller.jsx";
+import SellerProduct from "./SellerProduct.jsx";
 
 const USER_STORAGE_KEY = "shop-online-user";
 const TOKEN_STORAGE_KEY = "shop-online-token";
@@ -974,7 +975,7 @@ const MOCK_REVIEWS = [
 
 function App() {
   const [theme, setTheme] = useState("dark");
-  const [currentView, setCurrentView] = useState("home"); // 'home', 'catalog', 'category-catalog', 'product-detail', 'checkout', 'orders', 'register-seller'
+  const [currentView, setCurrentView] = useState("home"); // 'home', 'catalog', 'category-catalog', 'product-detail', 'checkout', 'orders', 'register-seller', 'seller-product'
 
   // Navigation Selection States
   const [selectedGame, setSelectedGame] = useState(null);
@@ -1148,7 +1149,7 @@ function App() {
     }
 
     setCurrentUser(updatedUser);
-    pushRoute("home");
+    pushRoute("seller-product");
     triggerToast("Đăng ký trở thành người bán thành công.");
   };
 
@@ -1173,7 +1174,7 @@ function App() {
     }
 
     if (currentUser.role === "seller") {
-      triggerToast("Bạn đang là seller");
+      pushRoute("seller-product");
       return;
     }
 
@@ -1182,7 +1183,7 @@ function App() {
 
   const sellerEntryLabel =
     currentUser?.role === "seller"
-      ? "Bạn đang là seller"
+      ? "Đăng bán sản phẩm"
       : "Trở thành người bán";
 
   // Sync theme changes with body element
@@ -1272,6 +1273,8 @@ function App() {
       path = "/gamepal";
     } else if (view === "mobile-topup") {
       path = "/mobile-topup";
+    } else if (view === "seller-product") {
+      path = "/seller-product";
     }
 
     if (replace) {
@@ -1379,6 +1382,10 @@ function App() {
       pushRoute("mobile-topup", {}, replace);
       return;
     }
+    if (path === "/seller-product") {
+      pushRoute("seller-product", {}, replace);
+      return;
+    }
     if (path === "/register-seller") {
       pushRoute("register-seller", {}, replace);
       return;
@@ -1428,6 +1435,8 @@ function App() {
         setCurrentView("gamepal-directory");
       } else if (path === "/mobile-topup") {
         setCurrentView("mobile-topup");
+      } else if (path === "/seller-product") {
+        setCurrentView("seller-product");
       } else if (path === "/register-seller") {
         setCurrentView("register-seller");
       } else {
@@ -5222,6 +5231,74 @@ function App() {
           onBack={() => pushRoute("home")}
           onConfirm={handleSellerRegistrationComplete}
         />
+      )}
+
+      {currentView === "seller-product" && currentUser?.role === "seller" && (
+        <SellerProduct user={currentUser} onBack={() => pushRoute("home")} />
+      )}
+
+      {currentView === "seller-product" && currentUser?.role !== "seller" && (
+        <div className="container" style={{ padding: "72px 0 96px" }}>
+          <div
+            style={{
+              maxWidth: "760px",
+              margin: "0 auto",
+              padding: "32px",
+              borderRadius: "24px",
+              border: "1px solid var(--border-color)",
+              background: "var(--bg-secondary)",
+              boxShadow: "var(--card-shadow)",
+            }}
+          >
+            <span className="register-seller-kicker">Khu vực người bán</span>
+            <h1
+              style={{
+                margin: "10px 0 12px",
+                fontFamily: "var(--font-heading)",
+              }}
+            >
+              Chỉ seller mới được đăng sản phẩm
+            </h1>
+            <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
+              {currentUser
+                ? "Tài khoản hiện tại chưa có role seller. Hãy đăng ký seller trước khi đăng sản phẩm."
+                : "Bạn cần đăng nhập trước khi vào trang đăng sản phẩm."}
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flexWrap: "wrap",
+                marginTop: "24px",
+              }}
+            >
+              {currentUser ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => pushRoute("register-seller")}
+                >
+                  Đăng ký seller
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setShowLogin(true)}
+                >
+                  Đăng nhập
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => pushRoute("home")}
+              >
+                Về trang chủ
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Become a Seller Modal */}

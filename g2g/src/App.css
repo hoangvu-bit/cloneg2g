@@ -193,6 +193,234 @@
   box-shadow: none;
 }
 
+.seller-product-page {
+  min-height: calc(100vh - 72px);
+  padding: 56px 0 80px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(255, 78, 58, 0.18),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at bottom left,
+      rgba(14, 165, 233, 0.12),
+      transparent 30%
+    ),
+    var(--bg-primary);
+}
+
+.seller-product-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.seller-product-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.seller-product-back {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.seller-product-hero h1 {
+  margin: 6px 0 8px;
+  font-family: var(--font-heading);
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.seller-product-hero p {
+  max-width: 640px;
+  color: var(--text-secondary);
+}
+
+.seller-product-kicker {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: var(--brand-red-light);
+  color: var(--brand-red);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.seller-product-notice {
+  padding: 14px 16px;
+  border-radius: 16px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.seller-product-notice--success {
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: #d1fae5;
+}
+
+.seller-product-notice--error {
+  border: 1px solid rgba(255, 78, 58, 0.35);
+  background: rgba(255, 78, 58, 0.08);
+  color: #fecaca;
+}
+
+.seller-product-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .seller-product-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.seller-product-card,
+.seller-product-preview-card {
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  background: var(--bg-secondary);
+  box-shadow: var(--card-shadow);
+}
+
+.seller-product-card {
+  padding: 28px;
+}
+
+.seller-product-card-header {
+  margin-bottom: 22px;
+}
+
+.seller-product-card-header h2,
+.seller-product-preview-card h3 {
+  margin-bottom: 6px;
+  font-size: 20px;
+}
+
+.seller-product-card-header p {
+  color: var(--text-secondary);
+}
+
+.seller-product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.seller-span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .seller-product-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .seller-span-2 {
+    grid-column: auto;
+  }
+}
+
+.seller-product-submit {
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px 18px;
+}
+
+.seller-product-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.seller-product-preview-card {
+  padding: 22px;
+}
+
+.seller-product-preview-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.seller-product-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.seller-product-preview-price {
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--brand-red);
+  margin-bottom: 14px;
+}
+
+.seller-product-preview-card p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.seller-product-empty {
+  padding: 14px 0 4px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.seller-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.seller-product-list-item {
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+
+.seller-product-list-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.seller-product-list-item-top span {
+  color: var(--brand-red);
+  font-weight: 800;
+}
+
+.seller-product-list-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.seller-product-list-item p {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .logo-g2g {
   color: var(--brand-red);
 }

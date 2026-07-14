@@ -103,5 +103,70 @@ export async function submitSellerRegistration() {
   };
 
   window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  if (data?.access_token) {
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, data.access_token);
+  }
   return user;
+}
+
+export async function submitProductListing({
+  title,
+  description,
+  price,
+  quantity,
+  imageUrl,
+}) {
+  if (typeof window === "undefined" || !window.localStorage) {
+    throw new Error("Không tìm thấy phiên đăng nhập");
+  }
+
+  const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+
+  if (!token) {
+    throw new Error("Vui lòng đăng nhập trước khi đăng sản phẩm");
+  }
+
+  const res = await fetch("http://127.0.0.1:5000/products", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      title,
+      description,
+      price,
+      quantity,
+      image: imageUrl,
+    }),
+  });
+
+  const data = await res
+    .json()
+    .catch(() => ({ message: "Server không trả JSON hợp lệ" }));
+
+  if (!res.ok) {
+    throw new Error(data?.message || "Không thể đăng sản phẩm");
+  }
+
+  return data;
+}
+
+export async function fetchRecentProducts() {
+  const res = await fetch("http://127.0.0.1:5000/products", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  const data = await res
+    .json()
+    .catch(() => ({ message: "Server không trả JSON hợp lệ" }));
+
+  if (!res.ok) {
+    throw new Error(data?.message || "Không thể tải sản phẩm gần đây");
+  }
+
+  return data?.products || [];
 }
