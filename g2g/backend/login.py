@@ -1,4 +1,6 @@
 import os
+import logging
+import secrets
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify
 from flasgger import Swagger
@@ -13,16 +15,30 @@ from flask.json.provider import DefaultJSONProvider
 from decimal import Decimal
 
 app = Flask(__name__)
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("g2g.backend")
+is_production = os.environ.get("FLASK_ENV") == "production"
 app.config["SECRET_KEY"] = os.environ.get("JWT_SECRET") or os.environ.get("SECRET_KEY")
 if not app.config["SECRET_KEY"]:
-    raise RuntimeError("Missing JWT_SECRET or SECRET_KEY environment variable")
+    if is_production:
+        raise RuntimeError("Missing JWT_SECRET or SECRET_KEY environment variable")
+    app.config["SECRET_KEY"] = "dev-only-change-this-secret"
 
 allowed_origins = [
     origin.strip()
     for origin in os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
     if origin.strip()
 ]
-CORS(app, resources={r"/*": {"origins": allowed_origins}})
+CORS(app, resources={r"/*": {"origins": allowed_origins}}, supports_credentials=True)
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "").lower() == "true"
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "Lax")
+ACCESS_TOKEN_COOKIE = "access_token"
+CSRF_TOKEN_COOKIE = "csrf_token"
+CSRF_HEADER = "X-CSRF-Token"
+STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 class CustomJSONProvider(DefaultJSONProvider):
     def default(self, o):
         if isinstance(o, Decimal):
@@ -37,6 +53,18 @@ swagger_template = {
             "version": "1.0"
         },
         "securityDefinitions": {
+            "CookieAuth": {
+                "type": "apiKey",
+                "name": "access_token",
+                "in": "cookie",
+                "description": "JWT duoc gui bang httpOnly cookie sau khi dang nhap"
+            },
+            "CsrfToken": {
+                "type": "apiKey",
+                "name": "X-CSRF-Token",
+                "in": "header",
+                "description": "Header CSRF cho request thay doi du lieu"
+            },
             "Bearer": {
                 "type": "apiKey",
                 "name": "Authorization",
@@ -97,6 +125,52 @@ def create_access_token(user_id):
           "exp": datetime.now(timezone.utc) + timedelta(hours=1),
       }
       return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+
+
+def set_access_cookie(response, token):
+      response.set_cookie(
+          ACCESS_TOKEN_COOKIE,
+          token,
+          httponly=True,
+          secure=COOKIE_SECURE,
+          samesite=COOKIE_SAMESITE,
+          max_age=60 * 60,
+          path="/",
+      )
+      return response
+
+
+def set_csrf_cookie(response):
+      csrf_token = secrets.token_urlsafe(32)
+      response.set_cookie(
+          CSRF_TOKEN_COOKIE,
+          csrf_token,
+          httponly=False,
+          secure=COOKIE_SECURE,
+          samesite=COOKIE_SAMESITE,
+          max_age=60 * 60,
+          path="/",
+      )
+      return response
+
+
+def clear_auth_cookies(response):
+      response.delete_cookie(ACCESS_TOKEN_COOKIE, path="/")
+      response.delete_cookie(CSRF_TOKEN_COOKIE, path="/")
+      return response
+
+
+def csrf_protect(f):
+      @wraps(f)
+      def decorated(*args, **kwargs):
+          if request.method in STATE_CHANGING_METHODS:
+              cookie_token = request.cookies.get(CSRF_TOKEN_COOKIE)
+              header_token = request.headers.get(CSRF_HEADER)
+              if not cookie_token or not header_token or not secrets.compare_digest(cookie_token, header_token):
+                  return jsonify({"message": "CSRF token khong hop le"}), 403
+          return f(*args, **kwargs)
+
+      return decorated
 
 
 def parse_positive_decimal(value):
@@ -163,6 +237,16 @@ def seller_required(f):
                   "message": "Chỉ người bán mới được thực hiện chức năng này"
               }), 403
 
+          return f(user, *args, **kwargs)
+
+      return decorated
+
+
+def admin_required(f):
+      @wraps(f)
+      def decorated(user, *args, **kwargs):
+          if (user.get("role") or "").lower() != "admin":
+              return jsonify({"message": "Chi admin moi duoc thuc hien chuc nang nay"}), 403
           return f(user, *args, **kwargs)
 
       return decorated
@@ -334,9 +418,8 @@ def login():
 
           token = create_access_token(user[0])
 
-          return jsonify({
+          response = jsonify({
             "message": "Đăng nhập thành công",
-            "access_token": token,
             "user": {
                 "id": user[0],
                 "mail": mail,
@@ -344,7 +427,10 @@ def login():
                 "role": user[3] or 'user',
                 "balance": balance_val
             }
-        }), 200
+        })
+          set_access_cookie(response, token)
+          set_csrf_cookie(response)
+          return response, 200
 
         else:
             return jsonify({"message": "Sai email hoặc mật khẩu"}), 401
@@ -352,14 +438,13 @@ def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
+        token = request.cookies.get(ACCESS_TOKEN_COOKIE)
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+        if not token:
             return jsonify({"message": "Thiếu token"}), 401
 
         try:
-            token = auth_header.split(" ", 1)[1].strip()
-            if not token:
-                return jsonify({"message": "Thieu token"}), 401
-
             data = jwt.decode(
                 token,
                 app.config["SECRET_KEY"],
@@ -381,6 +466,7 @@ def token_required(f):
 
 @app.route('/register-seller', methods=['POST'])
 @token_required
+@csrf_protect
 def register_seller(user):
       """
       Nâng cấp tài khoản thành người bán
@@ -425,9 +511,8 @@ def register_seller(user):
           # Tạo Access Token mới với role seller
           new_token = create_access_token(existing_user[0])
 
-          return jsonify({
+          response = jsonify({
               "message": "Đăng ký người bán thành công",
-              "access_token": new_token,
               "user": {
                   "id": existing_user[0],
                   "name": existing_user[1],
@@ -435,10 +520,53 @@ def register_seller(user):
                   "role": "seller",
                   "balance": float(existing_user[4]) if existing_user[4] is not None else 0.0
               }
-          }), 200
+          })
+          set_access_cookie(response, new_token)
+          set_csrf_cookie(response)
+          return response, 200
 
       except Exception:
           return jsonify({"message": "Khong the xu ly yeu cau"}), 400
+
+
+@app.route("/logout", methods=["POST"])
+@csrf_protect
+def logout():
+      response = jsonify({"message": "Dang xuat thanh cong"})
+      clear_auth_cookies(response)
+      return response, 200
+
+
+@app.route("/csrf-token", methods=["GET"])
+def csrf_token():
+      response = jsonify({"message": "CSRF token da duoc cap"})
+      set_csrf_cookie(response)
+      return response, 200
+
+
+@app.route("/admin/sellers/<int:user_id>/approve", methods=["POST"])
+@token_required
+@csrf_protect
+@admin_required
+def approve_seller(user, user_id):
+      conn = None
+      try:
+          conn = get_db_connection()
+          cursor = conn.cursor()
+          cursor.execute("UPDATE Users SET Role = ? WHERE Id = ?", ("seller", user_id))
+          if cursor.rowcount == 0:
+              conn.rollback()
+              return jsonify({"message": "Khong tim thay nguoi dung"}), 404
+          conn.commit()
+          return jsonify({"message": "Da duyet nguoi ban", "user_id": user_id}), 200
+      except Exception:
+          if conn:
+              conn.rollback()
+          logger.exception("approve_seller_failed")
+          return server_error()
+      finally:
+          if conn:
+              conn.close()
 
 @app.route("/products", methods=["GET"])
 def get_products():
@@ -501,6 +629,7 @@ def get_products():
 
 @app.route("/products", methods=["POST"])
 @token_required
+@csrf_protect
 @seller_required
 def create_product(user):
     """
@@ -619,6 +748,7 @@ def create_product(user):
         return server_error()
 @app.route("/deposit", methods=["POST"])
 @token_required
+@csrf_protect
 def deposit(user):
     """
     Nạp tiền vào tài khoản
@@ -646,6 +776,43 @@ def deposit(user):
       500:
         description: Lỗi máy chủ
     """
+    conn = None
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"message": "Thieu du lieu"}), 400
+        amount = parse_positive_decimal(data.get("amount"))
+        provider = (data.get("provider") or "manual").strip()[:50]
+        if amount is None:
+            return jsonify({"message": "So tien nap phai la so duong"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO PaymentRequests (UserId, Amount, Provider, Status, CreatedAt)
+            OUTPUT INSERTED.Id
+            VALUES (?, ?, ?, ?, ?)
+        """, (user["id"], amount, provider, "pending", datetime.now()))
+        payment_id = cursor.fetchone()[0]
+        conn.commit()
+        return jsonify({
+            "message": "Yeu cau nap tien da duoc tao va dang cho duyet",
+            "payment_request": {
+                "id": payment_id,
+                "amount": float(amount),
+                "provider": provider,
+                "status": "pending",
+            }
+        }), 202
+    except Exception:
+        if conn:
+            conn.rollback()
+        logger.exception("create_payment_request_failed")
+        return server_error()
+    finally:
+        if conn:
+            conn.close()
+
     if os.environ.get("ENABLE_UNSAFE_DEPOSIT", "").lower() != "true":
         return jsonify({"message": "Nap tien truc tiep da bi tat; hay dung cong thanh toan hoac webhook tin cay"}), 403
 
@@ -685,6 +852,54 @@ def deposit(user):
 
     except Exception:
         return server_error()
+
+
+@app.route("/admin/payment-requests/<int:payment_id>/approve", methods=["POST"])
+@token_required
+@csrf_protect
+@admin_required
+def approve_payment_request(user, payment_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT Id, UserId, Amount, Status
+            FROM PaymentRequests
+            WHERE Id = ?
+        """, (payment_id,))
+        payment = cursor.fetchone()
+        if not payment:
+            return jsonify({"message": "Khong tim thay yeu cau nap tien"}), 404
+        if (payment[3] or "").lower() != "pending":
+            return jsonify({"message": "Yeu cau nap tien khong o trang thai pending"}), 400
+
+        cursor.execute(
+            "UPDATE Users SET Balance = Balance + ? WHERE Id = ?",
+            (payment[2], payment[1]),
+        )
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return jsonify({"message": "Khong tim thay nguoi dung"}), 404
+        cursor.execute("""
+            UPDATE PaymentRequests
+            SET Status = ?, ApprovedBy = ?, ApprovedAt = ?
+            WHERE Id = ? AND Status = ?
+        """, ("approved", user["id"], datetime.now(), payment_id, "pending"))
+        cursor.execute("""
+            INSERT INTO BalanceAuditLogs (UserId, Amount, Action, ReferenceType, ReferenceId, CreatedBy, CreatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (payment[1], payment[2], "topup_approved", "PaymentRequests", payment_id, user["id"], datetime.now()))
+        conn.commit()
+        return jsonify({"message": "Da duyet nap tien", "payment_id": payment_id}), 200
+    except Exception:
+        if conn:
+            conn.rollback()
+        logger.exception("approve_payment_request_failed")
+        return server_error()
+    finally:
+        if conn:
+            conn.close()
 @app.route("/profile", methods=["GET"])
 @token_required
 def profile(user):
@@ -736,6 +951,7 @@ def profile(user):
         return server_error()
 @app.route('/purchase', methods=['POST'])
 @token_required
+@csrf_protect
 def purchase(user):
     """
     API Mua Hàng
