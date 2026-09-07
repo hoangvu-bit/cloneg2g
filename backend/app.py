@@ -5,13 +5,12 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Flask, request, jsonify
-from flasgger import Swagger
+from flasgger import Swagger, swag_from
 from flask_cors import CORS
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
 load_dotenv()
-
 app = Flask(__name__)
 CORS(app)
 
@@ -37,6 +36,130 @@ swagger_template = {
 }
 
 swagger = Swagger(app, template=swagger_template)
+
+deposit_create_spec = {
+    "tags": ["Deposit"],
+    "security": [{"BearerAuth": []}],
+    "consumes": ["application/json"],
+    "parameters": [{
+        "in": "body",
+        "name": "body",
+        "required": True,
+        "schema": {
+            "type": "object",
+            "required": ["amount"],
+            "properties": {
+                "amount": {"type": "number", "example": 100000},
+                "provider": {"type": "string", "example": "manual"}
+            }
+        }
+    }],
+    "responses": {
+        "201": {"description": "Tạo yêu cầu nạp tiền thành công"},
+        "400": {"description": "Dữ liệu không hợp lệ"},
+        "401": {"description": "Thiếu hoặc token không hợp lệ"},
+        "409": {"description": "Đã có yêu cầu đang chờ duyệt"}
+    }
+}
+
+deposit_list_spec = {
+    "tags": ["Admin Deposit"],
+    "security": [{"BearerAuth": []}],
+    "responses": {
+        "200": {"description": "Lấy danh sách thành công"},
+        "401": {"description": "Thiếu hoặc token không hợp lệ"},
+        "403": {"description": "Không có quyền admin"}
+    }
+}
+
+deposit_approve_spec = {
+    "tags": ["Admin Deposit"],
+    "security": [{"BearerAuth": []}],
+    "parameters": [{
+        "name": "request_id",
+        "in": "path",
+        "required": True,
+        "type": "integer",
+        "example": 1
+    }],
+    "responses": {
+        "200": {"description": "Duyệt thành công"},
+        "400": {"description": "Yêu cầu đã được xử lý"},
+        "403": {"description": "Không có quyền admin"},
+        "404": {"description": "Không tìm thấy yêu cầu"}
+    }
+}
+
+purchase_spec = {
+    "tags": ["Order"],
+    "security": [{"BearerAuth": []}],
+    "consumes": ["application/json"],
+    "parameters": [
+        {
+            "name": "product_id",
+            "in": "path",
+            "required": True,
+            "type": "integer",
+            "example": 1
+        },
+        {
+            "in": "body",
+            "name": "body",
+            "required": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "example": 2
+                    }
+                }
+            }
+        }
+    ],
+    "responses": {
+        "201": {"description": "Mua thành công"},
+        "400": {"description": "Dữ liệu không hợp lệ hoặc số dư không đủ"},
+        "401": {"description": "Thiếu hoặc token không hợp lệ"},
+        "404": {"description": "Không tìm thấy sản phẩm hoặc người bán"},
+        "409": {"description": "Sản phẩm vừa được mua bởi người khác"}
+    }
+}
+
+product_create_spec = {
+    "tags": ["Product"],
+    "security": [{"BearerAuth": []}],
+    "consumes": ["application/json"],
+    "parameters": [{
+        "in": "body",
+        "name": "body",
+        "required": True,
+        "schema": {
+            "type": "object",
+            "required": ["product_name", "price", "stock_quantity"],
+            "properties": {
+                "game_id": {"type": "integer", "example": 1},
+                "category_id": {"type": "integer", "example": 1},
+                "product_name": {"type": "string", "example": "Acc game VIP"},
+                "server": {"type": "string", "example": "S1"},
+                "badge": {"type": "string", "example": "HOT"},
+                "description": {"type": "string", "example": "Tai khoan VIP"},
+                "price": {"type": "number", "example": 250000},
+                "stock_quantity": {"type": "integer", "example": 20},
+                "image_url": {"type": "string", "example": "https://example.com/product.jpg"},
+                "status": {"type": "string", "example": "active"}
+            }
+        }
+    }],
+    "responses": {
+        "201": {"description": "Đăng sản phẩm thành công"},
+        "400": {"description": "Dữ liệu không hợp lệ"},
+        "401": {"description": "Thiếu hoặc token không hợp lệ"},
+        "403": {"description": "Không có quyền đăng sản phẩm"}
+    }
+}
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -969,70 +1092,10 @@ def get_products():
 #=========================================
 #Đăng sản phẩm mới
 @app.route("/products", methods=["POST"])
+@swag_from(product_create_spec)
 @token_required
 def create_product(user):
-    """
-    Đăng sản phẩm mới
-    ---
-    tags:
-      - Product
-
-    security:
-      - BearerAuth: []
-
-    consumes:
-      - application/json
-
-    produces:
-      - application/json
-
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - name
-            - price
-            - stock
-          properties:
-            name:
-              type: string
-              example: Áo thun nam
-
-            description:
-              type: string
-              example: Áo cotton 100%
-
-            price:
-              type: number
-              example: 250000
-
-            stock:
-              type: integer
-              example: 20
-
-            image_url:
-              type: string
-              example: https://example.com/product.jpg
-
-    responses:
-      201:
-        description: Đăng sản phẩm thành công
-
-      400:
-        description: Dữ liệu không hợp lệ
-
-      401:
-        description: Thiếu hoặc token không hợp lệ
-
-      403:
-        description: Không có quyền đăng sản phẩm
-
-      500:
-        description: Lỗi máy chủ
-    """
+    """Đăng sản phẩm mới."""
     try:
         role = (user.get("role") or "").lower()
         if role not in ["seller", "admin"]:
@@ -1046,16 +1109,27 @@ def create_product(user):
                 "message": "Không nhận được dữ liệu JSON"
             }), 400
 
-        title = (data.get("title") or data.get("name") or "").strip()
+        product_name = (
+            data.get("product_name")
+            or data.get("title")
+            or data.get("name")
+            or ""
+        ).strip()
+        game_id = data.get("game_id")
+        category_id = data.get("category_id")
+        server = (data.get("server") or "").strip() or None
+        badge = (data.get("badge") or "").strip() or None
         description = (data.get("description") or "").strip()
         price = data.get("price")
-        quantity = data.get("quantity")
-        if quantity is None:
-            quantity = data.get("stock")
+        stock_quantity = data.get("stock_quantity")
+        if stock_quantity is None:
+            stock_quantity = data.get("quantity")
+        if stock_quantity is None:
+            stock_quantity = data.get("stock")
         image_url = (data.get("image_url") or "").strip()
         status = (data.get("status") or "active").strip() or "active"
 
-        if not title:
+        if not product_name:
             return jsonify({
                 "message": "Vui lòng nhập tên sản phẩm"
             }), 400
@@ -1065,14 +1139,14 @@ def create_product(user):
                 "message": "Vui lòng nhập giá sản phẩm"
             }), 400
 
-        if quantity is None:
+        if stock_quantity is None:
             return jsonify({
                 "message": "Vui lòng nhập số lượng sản phẩm"
             }), 400
 
         try:
             price = float(price)
-            quantity = int(quantity)
+            stock_quantity = int(stock_quantity)
         except (TypeError, ValueError):
             return jsonify({
                 "message": "Giá và số lượng phải là số hợp lệ"
@@ -1083,17 +1157,21 @@ def create_product(user):
                 "message": "Giá sản phẩm không được âm"
             }), 400
 
-        if quantity < 0:
+        if stock_quantity < 0:
             return jsonify({
                 "message": "Số lượng sản phẩm không được âm"
             }), 400
 
         product_payload = {
             "seller_id": user["id"],
-            "title": title,
+            "game_id": game_id,
+            "category_id": category_id,
+            "product_name": product_name,
+            "server": server,
+            "badge": badge,
             "description": description,
             "price": price,
-            "quantity": quantity,
+            "stock_quantity": stock_quantity,
             "image_url": image_url,
             "status": status
         }
@@ -1104,7 +1182,7 @@ def create_product(user):
             .insert(product_payload)
             .execute()
         )
-
+    
         if not result.data:
             return jsonify({
                 "message": "Không thể đăng sản phẩm"
@@ -1124,24 +1202,320 @@ def create_product(user):
         }), 500
 #========================================
 
-#Nạp tiền vào tài khoản
+#User Nạp tiền vào tài khoản
+
+@app.route("/deposit-requests", methods=["POST"])
+@swag_from(deposit_create_spec)
+@token_required
+def create_deposit_request(user):
+    """Tạo yêu cầu nạp tiền, chờ admin duyệt."""
+    try:
+        data = request.get_json(silent=True) or {}
+        amount = data.get("amount")
+        provider = (data.get("provider") or "manual").strip() or "manual"
+
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return jsonify({"message": "Số tiền nạp không hợp lệ"}), 400
+
+        if amount <= 0:
+            return jsonify({"message": "Số tiền nạp phải lớn hơn 0"}), 400
+
+        pending = (
+            supabase.table("deposit_requests")
+            .select("id, amount, provider, status, created_at")
+            .eq("user_id", user["id"])
+            .eq("status", "pending")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if pending.data:
+            return jsonify({
+                "message": "Bạn đã có yêu cầu nạp tiền đang chờ duyệt",
+                "deposit_request": pending.data[0]
+            }), 409
+
+        result = (
+            supabase.table("deposit_requests")
+            .insert({
+                "user_id": user["id"],
+                "amount": amount,
+                "provider": provider,
+                "status": "pending"
+            })
+            .execute()
+        )
+
+        if not result.data:
+            return jsonify({"message": "Không thể tạo yêu cầu nạp tiền"}), 500
+
+        return jsonify({
+            "message": "Đã gửi yêu cầu nạp tiền, chờ admin duyệt",
+            "deposit_request": result.data[0]
+        }), 201
+    except Exception as e:
+        return jsonify({"message": "Lỗi máy chủ", "error": str(e)}), 500
 
 #========================================
 
 #Danh sách yêu cầu nạp tiền
 
+@app.route("/admin/deposit-requests", methods=["GET"])
+@swag_from(deposit_list_spec)
+@token_required
+@admin_required
+def get_deposit_requests(user):
+    """Admin xem danh sách yêu cầu nạp tiền."""
+    try:
+        result = (
+            supabase.table("deposit_requests")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return jsonify({
+            "message": "Lấy danh sách yêu cầu nạp tiền thành công",
+            "deposit_requests": result.data or []
+        }), 200
+    except Exception as e:
+        return jsonify({"message": "Lỗi máy chủ", "error": str(e)}), 500
+
 #========================================
 
 #Admin duyệt yêu cầu nạp tiền
+
+@app.route("/admin/deposit-requests/<int:request_id>/approve", methods=["POST"])
+@swag_from(deposit_approve_spec)
+@token_required
+@admin_required
+def approve_deposit_request(user, request_id):
+    """Admin duyệt yêu cầu nạp tiền và ghi audit số dư."""
+    try:
+        request_result = (
+            supabase.table("deposit_requests")
+            .select("id, user_id, amount, status")
+            .eq("id", request_id)
+            .limit(1)
+            .execute()
+        )
+        if not request_result.data:
+            return jsonify({"message": "Không tìm thấy yêu cầu nạp tiền"}), 404
+
+        deposit = request_result.data[0]
+        if deposit["status"] != "pending":
+            return jsonify({"message": "Yêu cầu nạp tiền đã được xử lý"}), 400
+
+        target_result = (
+            supabase.table("users")
+            .select("id, balance")
+            .eq("id", deposit["user_id"])
+            .limit(1)
+            .execute()
+        )
+        if not target_result.data:
+            return jsonify({"message": "Không tìm thấy người dùng"}), 404
+
+        current_balance = float(target_result.data[0].get("balance") or 0)
+        amount = float(deposit["amount"])
+        new_balance = current_balance + amount
+
+        update_user = (
+            supabase.table("users")
+            .update({"balance": new_balance})
+            .eq("id", deposit["user_id"])
+            .execute()
+        )
+        if not update_user.data:
+            return jsonify({"message": "Không thể cập nhật số dư"}), 500
+
+        audit = (
+            supabase.table("balance_audit_logs")
+            .insert({
+                "user_id": deposit["user_id"],
+                "amount": amount,
+                "action": "deposit",
+                "reference_type": "deposit_request",
+                "reference_id": request_id,
+                "created_by": user["id"]
+            })
+            .execute()
+        )
+        if not audit.data:
+            return jsonify({"message": "Không thể ghi lịch sử biến động số dư"}), 500
+
+        approved = (
+            supabase.table("deposit_requests")
+            .update({
+                "status": "approved",
+                "approved_by": user["id"],
+                "approved_at": datetime.now(timezone.utc).isoformat()
+            })
+            .eq("id", request_id)
+            .eq("status", "pending")
+            .execute()
+        )
+        if not approved.data:
+            return jsonify({"message": "Yêu cầu đã được xử lý đồng thời"}), 409
+
+        return jsonify({
+            "message": "Duyệt yêu cầu nạp tiền thành công",
+            "deposit_request": approved.data[0],
+            "balance": new_balance
+        }), 200
+    except Exception as e:
+        return jsonify({"message": "Lỗi máy chủ", "error": str(e)}), 500
 
 #========================================
 
 #Mua sản phẩm
 
+@app.route("/products/<int:product_id>/purchase", methods=["POST"])
+@swag_from(purchase_spec)
+@token_required
+def purchase_product(user, product_id):
+    """Mua sản phẩm, trừ User và cộng tiền cho Seller."""
+    try:
+        data = request.get_json(silent=True) or {}
+        try:
+            quantity = int(data.get("quantity", 1))
+        except (TypeError, ValueError):
+            return jsonify({"message": "Số lượng không hợp lệ"}), 400
+
+        if quantity <= 0:
+            return jsonify({"message": "Số lượng phải lớn hơn 0"}), 400
+
+        product_result = (
+            supabase.table("products")
+            .select("id, seller_id, product_name, price, stock_quantity, status")
+            .eq("id", product_id)
+            .limit(1)
+            .execute()
+        )
+        if not product_result.data:
+            return jsonify({"message": "Không tìm thấy sản phẩm"}), 404
+
+        product = product_result.data[0]
+        if product.get("status") not in (None, "active"):
+            return jsonify({"message": "Sản phẩm không còn bán"}), 400
+        if product["seller_id"] == user["id"]:
+            return jsonify({"message": "Không thể tự mua sản phẩm của mình"}), 400
+        if int(product["stock_quantity"]) < quantity:
+            return jsonify({"message": "Số lượng sản phẩm không đủ"}), 400
+
+        buyer_balance = float(user.get("balance") or 0)
+        unit_price = float(product["price"])
+        total_price = unit_price * quantity
+        if buyer_balance < total_price:
+            return jsonify({"message": "Số dư không đủ để mua sản phẩm"}), 400
+
+        seller_result = (
+            supabase.table("users")
+            .select("id, balance")
+            .eq("id", product["seller_id"])
+            .limit(1)
+            .execute()
+        )
+        if not seller_result.data:
+            return jsonify({"message": "Không tìm thấy người bán"}), 404
+
+        seller_balance = float(seller_result.data[0].get("balance") or 0)
+        order_result = (
+            supabase.table("orders")
+            .insert({
+                "user_id": user["id"],
+                "seller_id": product["seller_id"],
+                "total_price": total_price,
+                "status": "paid"
+            })
+            .execute()
+        )
+        if not order_result.data:
+            return jsonify({"message": "Không thể tạo đơn hàng"}), 500
+
+        order = order_result.data[0]
+        order_id = order["id"]
+        item_result = (
+            supabase.table("order_items")
+            .insert({
+                "order_id": order_id,
+                "product_id": product_id,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "total_price": total_price
+            })
+            .execute()
+        )
+        if not item_result.data:
+            return jsonify({"message": "Không thể lưu chi tiết đơn hàng"}), 500
+
+        stock_result = (
+            supabase.table("products")
+            .update({"stock_quantity": int(product["stock_quantity"]) - quantity})
+            .eq("id", product_id)
+            .eq("stock_quantity", product["stock_quantity"])
+            .execute()
+        )
+        if not stock_result.data:
+            return jsonify({"message": "Sản phẩm vừa được mua bởi người khác"}), 409
+
+        buyer_update = (
+            supabase.table("users")
+            .update({"balance": buyer_balance - total_price})
+            .eq("id", user["id"])
+            .execute()
+        )
+        seller_update = (
+            supabase.table("users")
+            .update({"balance": seller_balance + total_price})
+            .eq("id", product["seller_id"])
+            .execute()
+        )
+        if not buyer_update.data or not seller_update.data:
+            return jsonify({"message": "Không thể cập nhật số dư giao dịch"}), 500
+
+        transaction = (
+            supabase.table("transactions")
+            .insert({
+                "user_id": user["id"],
+                "product_id": product_id,
+                "quantity": quantity,
+                "total_price": total_price
+            })
+            .execute()
+        )
+        audit_rows = [
+            {
+                "user_id": user["id"], "amount": -total_price,
+                "action": "purchase", "reference_type": "order",
+                "reference_id": order_id, "created_by": user["id"]
+            },
+            {
+                "user_id": product["seller_id"], "amount": total_price,
+                "action": "sale", "reference_type": "order",
+                "reference_id": order_id, "created_by": user["id"]
+            }
+        ]
+        audit = supabase.table("balance_audit_logs").insert(audit_rows).execute()
+        if not transaction.data or not audit.data:
+            return jsonify({"message": "Không thể ghi lịch sử giao dịch"}), 500
+
+        return jsonify({
+            "message": "Mua sản phẩm thành công",
+            "order": order,
+            "order_item": item_result.data[0],
+            "buyer_balance": buyer_balance - total_price,
+            "seller_balance": seller_balance + total_price
+        }), 201
+    except Exception as e:
+        return jsonify({"message": "Lỗi máy chủ", "error": str(e)}), 500
+
 #========================================
-
-#Đăng xuất
-
-#========================================   
+  
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=True
+    )
