@@ -324,9 +324,14 @@ export default function SellerLanding({
       return updated;
     });
 
-    // Transfer fee to Admin's wallet (Admin G2G)
-    const currentAdminBal = Number(localStorage.getItem('g2g_user_wallet_balance_Admin G2G') || '0');
-    localStorage.setItem('g2g_user_wallet_balance_Admin G2G', String(currentAdminBal + appFee));
+    // Transfer 10% fee to Admin via adminApi
+    adminApi.creditAdminFee(appFee, {
+      buyerName: order.buyerName || 'Khách mua',
+      sellerName: order.sellerName || currentUser?.name || 'Shop',
+      itemName: order.itemName || `Đơn hàng #${order.id}`,
+      totalAmount: totalAmount,
+      orderId: order.id
+    }).catch(e => console.warn('Lỗi creditAdminFee SellerLanding.jsx:', e));
 
     const newTx = {
       id: `T-${Math.floor(100000 + Math.random() * 900000)}`,

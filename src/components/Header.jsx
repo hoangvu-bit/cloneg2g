@@ -35,15 +35,41 @@ export default function Header({
   const [isNotificationOpen, setIsNotificationOpen] = React.useState(false);
   const notificationDropdownRef = React.useRef(null);
 
+  const getNotificationKeys = () => {
+    if (!currentUser) return [];
+    const keys = [`g2g_notifications_${currentUser.name}`];
+    if (currentUser.id) keys.push(`g2g_notifications_user_${currentUser.id}`);
+    if (currentUser.role === 'admin') {
+      keys.push('g2g_notifications_admin', 'g2g_notifications_Admin', 'g2g_notifications_Admin G2G', 'g2g_admin_notifications');
+    }
+    return keys;
+  };
+
   const loadNotifications = () => {
     if (currentUser) {
-      const key = `g2g_notifications_${currentUser.name}`;
-      try {
-        const saved = localStorage.getItem(key);
-        setNotifications(saved ? JSON.parse(saved) : []);
-      } catch (e) {
-        setNotifications([]);
+      const keys = getNotificationKeys();
+      let combined = [];
+      keys.forEach(k => {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) combined.push(...arr);
+          }
+        } catch (e) {}
+      });
+
+      // Deduplicate by ID or (title + message + date)
+      const seen = new Set();
+      const unique = [];
+      for (const n of combined) {
+        const dedupeKey = n.id ? String(n.id) : `${n.title}-${n.date}-${n.message}`;
+        if (!seen.has(dedupeKey)) {
+          seen.add(dedupeKey);
+          unique.push(n);
+        }
       }
+      setNotifications(unique);
     } else {
       setNotifications([]);
     }
@@ -51,8 +77,19 @@ export default function Header({
 
   React.useEffect(() => {
     loadNotifications();
-    const interval = setInterval(loadNotifications, 3000);
-    return () => clearInterval(interval);
+    const interval = setInterval(loadNotifications, 2000);
+    const handleSync = () => loadNotifications();
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('g2g_admin_notification', handleSync);
+    window.addEventListener('g2g_notification_received', handleSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('g2g_admin_notification', handleSync);
+      window.removeEventListener('g2g_notification_received', handleSync);
+    };
   }, [currentUser]);
 
   React.useEffect(() => {
@@ -278,7 +315,9 @@ export default function Header({
                       if (currentUser && notifications.some(n => n.unread)) {
                         const updated = notifications.map(n => ({ ...n, unread: false }));
                         setNotifications(updated);
-                        localStorage.setItem(`g2g_notifications_${currentUser.name}`, JSON.stringify(updated));
+                        getNotificationKeys().forEach(k => {
+                          try { localStorage.setItem(k, JSON.stringify(updated)); } catch (e) {}
+                        });
                       }
                     }}
                   >
@@ -318,7 +357,9 @@ export default function Header({
                           <span 
                             style={{ fontSize: '11px', color: '#ff3333', cursor: 'pointer' }}
                             onClick={() => {
-                              localStorage.setItem(`g2g_notifications_${currentUser.name}`, JSON.stringify([]));
+                              getNotificationKeys().forEach(k => {
+                                try { localStorage.setItem(k, JSON.stringify([])); } catch (e) {}
+                              });
                               setNotifications([]);
                             }}
                           >

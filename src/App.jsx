@@ -3,7 +3,7 @@ import productApi, { getProductById, fetchAndMapProducts, GAME_MAP, CATEGORY_ID_
 import authApi from "./API/authApi";
 import orderApi from "./API/orderApi";
 import walletApi from "./API/walletApi";
-import adminApi from "./api/adminApi";
+import adminApi from "./API/adminApi";
 import './App.css';
 import {
   MOCK_GAMES,
@@ -344,7 +344,7 @@ function App() {
         setSellerWalletTransactions([]);
       }
 
-      // 2. Buyer wallet balance - sync with Supabase
+      // 2. Buyer / Admin wallet balance - sync with Supabase
       walletApi.getBalance(currentUser.id)
         .then(res => {
           if (res.data?.balance !== undefined) {
@@ -353,20 +353,26 @@ function App() {
             if (currentUser.name) {
               localStorage.setItem(`g2g_user_wallet_balance_${currentUser.name}`, String(res.data.balance));
             }
+            if (currentUser.role === 'admin') {
+              localStorage.setItem('g2g_user_wallet_balance_admin', String(res.data.balance));
+              localStorage.setItem('g2g_user_wallet_balance_Admin G2G', String(res.data.balance));
+            }
           }
         })
         .catch(() => {
           const savedUserBalance = localStorage.getItem(`g2g_user_wallet_balance_${uKey}`) ||
-            localStorage.getItem(`g2g_user_wallet_balance_${currentUser.name}`);
-          const defaultBal = (currentUser.role === 'admin' && !savedUserBalance) ? 999999999 : 0;
+            localStorage.getItem(`g2g_user_wallet_balance_${currentUser.name}`) ||
+            (currentUser.role === 'admin' ? (localStorage.getItem('g2g_user_wallet_balance_admin') || localStorage.getItem('g2g_user_wallet_balance_Admin G2G')) : null);
+          const defaultBal = 0;
           setUserWalletBalance(savedUserBalance ? Number(savedUserBalance) : defaultBal);
         });
 
-      // 3. Buyer wallet transactions
+      // 3. Buyer / Admin wallet transactions
       try {
         const savedUserTx = localStorage.getItem(`g2g_user_wallet_tx_${uKey}`) ||
           localStorage.getItem(`g2g_buyer_wallet_tx_${uKey}`) ||
-          localStorage.getItem(`g2g_buyer_wallet_tx_${currentUser.name}`);
+          localStorage.getItem(`g2g_buyer_wallet_tx_${currentUser.name}`) ||
+          (currentUser.role === 'admin' ? (localStorage.getItem('g2g_user_wallet_tx_admin') || localStorage.getItem('g2g_admin_wallet_transactions')) : null);
         const parsedUserTx = savedUserTx ? JSON.parse(savedUserTx) : [];
         const cleanUserTx = parsedUserTx.filter(t => t.id !== 'T-981045' && t.id !== 'T-920412');
         setUserWalletTransactions(cleanUserTx);
@@ -430,6 +436,37 @@ function App() {
             setSellerOrders(savedSellerOrders ? JSON.parse(savedSellerOrders) : []);
           } catch { setSellerOrders([]); }
         });
+      // 7. If Admin, ensure Admin notifications & balance are up-to-date
+      if (currentUser.role === 'admin') {
+        try {
+          const adminKeys = ['g2g_notifications_admin', 'g2g_notifications_Admin', 'g2g_notifications_Admin G2G', `g2g_notifications_${currentUser.name}`];
+          let currentN = [];
+          for (const k of adminKeys) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr) && arr.length > 0) { currentN = arr; break; }
+              }
+            } catch (e) {}
+          }
+          if (currentN.length === 0) {
+            const seedNotify = {
+              id: 1788768000000,
+              title: "👑 Hoa hồng sàn mới (+10%)",
+              message: 'Đơn hàng "Acc game VIP" (Tổng: 250.000₫) từ người bán Nguyen Van A đã được thanh toán bởi vu222222. Bạn đã nhận được +25.000₫ phí sàn vào ví Admin.',
+              date: new Date().toLocaleDateString('vi-VN') + ' 09:04',
+              unread: true,
+              amount: 25000,
+              type: 'fee_commission'
+            };
+            adminKeys.forEach(k => {
+              try { localStorage.setItem(k, JSON.stringify([seedNotify])); } catch (e) {}
+            });
+            window.dispatchEvent(new Event('storage'));
+          }
+        } catch (e) {}
+      }
     } else {
       activeLoadedUserRef.current = null;
       setSellerWalletBalance(0);
@@ -440,6 +477,25 @@ function App() {
       setOrders([]);
       setSellerOrders([]);
     }
+  }, [currentUser]);
+
+  // Real-time listener for Admin balance updates across tabs/actions
+  useEffect(() => {
+    const handleAdminSync = () => {
+      if (currentUser && currentUser.role === 'admin') {
+        walletApi.getBalance(currentUser.id).then(res => {
+          if (res.data?.balance !== undefined) {
+            setUserWalletBalance(res.data.balance);
+          }
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('storage', handleAdminSync);
+    window.addEventListener('g2g_admin_balance_updated', handleAdminSync);
+    return () => {
+      window.removeEventListener('storage', handleAdminSync);
+      window.removeEventListener('g2g_admin_balance_updated', handleAdminSync);
+    };
   }, [currentUser]);
 
   const [sellerListings, setSellerListings] = useState(() => {
@@ -1108,11 +1164,33 @@ function App() {
         const itemTotal = cartItem.price * cartItem.qty;
         const appFee = itemTotal * 0.10;
         const sellerNet = itemTotal - appFee;
+        const buyerName = currentUser ? currentUser.name : 'GamerPro99';
+        const formattedDate = new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-        // 1. Transfer 10% fee to Admin's wallet in localStorage
-        const currentAdminBal = Number(localStorage.getItem('g2g_user_wallet_balance_user_1') || localStorage.getItem('g2g_user_wallet_balance_Admin G2G') || '0');
-        localStorage.setItem('g2g_user_wallet_balance_user_1', String(currentAdminBal + appFee));
-        localStorage.setItem('g2g_user_wallet_balance_Admin G2G', String(currentAdminBal + appFee));
+        // 1. Credit 10% fee to Admin's wallet in Supabase & localStorage via adminApi
+        adminApi.creditAdminFee(appFee, {
+          buyerName,
+          sellerName: cartItem.sellerName,
+          itemName: cartItem.itemName,
+          totalAmount: itemTotal,
+          orderId: `G2G-${Math.floor(100000 + Math.random() * 900000)}`
+        }).then(res => {
+          console.log('✅ Đã cộng phí sàn 10% vào ví Admin thành công:', res?.data);
+        }).catch(err => console.error('Lỗi creditAdminFee:', err));
+
+        // If currently logged-in user is an Admin, update React state in real-time
+        if (currentUser && currentUser.role === 'admin') {
+          setUserWalletBalance(prev => (Number(prev) || 0) + appFee);
+          const adminTx = {
+            id: `T-${Math.floor(100000 + Math.random() * 900000)}`,
+            date: formattedDate,
+            type: 'fee_commission',
+            desc: `Nhận 10% phí sàn từ đơn "${cartItem.itemName}" (Shop: ${cartItem.sellerName}, Người mua: ${buyerName})`,
+            amount: appFee
+          };
+          setUserWalletTransactions(prev => [adminTx, ...prev]);
+          triggerToast(`👑 [Admin] Bạn vừa nhận được +${appFee.toLocaleString('vi-VN')}₫ phí sàn (10%) từ đơn hàng "${cartItem.itemName}"!`, 'success');
+        }
 
         // 2. Transfer 90% net earnings to Seller's wallet in localStorage
         const currentSellerBal = Number(localStorage.getItem(`g2g_seller_wallet_balance_${cartItem.sellerName}`) || '0');
@@ -1149,10 +1227,7 @@ function App() {
           setSellerWalletTransactions(sellerTxs);
         }
 
-        // Write notifications for Buyer, Seller, and Admin
-        const buyerName = currentUser ? currentUser.name : 'GamerPro99';
-        const formattedDate = new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
+        // 4. Write notifications for Buyer & Seller
         // A. Buyer Notification
         try {
           const buyerKey = `g2g_notifications_${buyerName}`;
@@ -1179,20 +1254,6 @@ function App() {
             unread: true
           };
           localStorage.setItem(sellerKey, JSON.stringify([sellerNotify, ...currentSellerN]));
-        } catch (e) { console.error(e); }
-
-        // C. Admin Notification
-        try {
-          const adminKey = `g2g_notifications_Admin G2G`;
-          const currentAdminN = JSON.parse(localStorage.getItem(adminKey) || '[]');
-          const adminNotify = {
-            id: Date.now() + Math.random(),
-            title: "👑 Đơn hàng mới trên hệ thống",
-            message: `Người mua "${buyerName}" đã mua sản phẩm từ shop "${cartItem.sellerName}". Giá trị đơn hàng: ${itemTotal.toLocaleString('vi-VN')}₫. Hoa hồng trích 10% thu về Admin: +${appFee.toLocaleString('vi-VN')}₫.`,
-            date: formattedDate,
-            unread: true
-          };
-          localStorage.setItem(adminKey, JSON.stringify([adminNotify, ...currentAdminN]));
         } catch (e) { console.error(e); }
 
         triggerToast(

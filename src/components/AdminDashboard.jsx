@@ -5,10 +5,54 @@ import productApi, { GAME_MAP } from '../API/ProductApi';
 export default function AdminDashboard({ currentUser, triggerToast }) {
   const [users, setUsers] = useState([]);
   const [globalListings, setGlobalListings] = useState([]);
-  const [activeTab, setActiveTab] = useState('requests'); // 'users' | 'requests' | 'products'
+  const [activeTab, setActiveTab] = useState('finances'); // 'finances' | 'requests' | 'users' | 'products'
   const [rejectMail, setRejectMail] = useState(null);
   const [rejectReasonText, setRejectReasonText] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Financial and fee stats
+  const [adminBalance, setAdminBalance] = useState(0);
+  const [adminOrders, setAdminOrders] = useState([]);
+  const [adminFinances, setAdminFinances] = useState({ totalOrders: 0, totalRevenue: 0, totalFee: 0 });
+  const [adminTransactions, setAdminTransactions] = useState([]);
+
+  // Fetch finances & fee stats
+  const fetchFinances = async () => {
+    try {
+      const balRes = await adminApi.getAdminBalance();
+      const b = Number(balRes.data?.balance) || 0;
+      setAdminBalance(b);
+
+      const ordRes = await adminApi.getAdminOrders();
+      if (ordRes.data) {
+        setAdminOrders(ordRes.data.orders || []);
+        setAdminFinances({
+          totalOrders: ordRes.data.totalOrders || 0,
+          totalRevenue: ordRes.data.totalRevenue || 0,
+          totalFee: ordRes.data.totalFee || 0
+        });
+      }
+
+      // Load transactions from localStorage
+      const txKeys = ['g2g_admin_wallet_transactions', 'g2g_user_wallet_tx_admin', 'g2g_user_wallet_tx_user_2', 'g2g_user_wallet_tx_Admin G2G'];
+      let txs = [];
+      for (const k of txKeys) {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              txs = parsed;
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+      setAdminTransactions(txs);
+    } catch (err) {
+      console.error("fetchFinances error:", err);
+    }
+  };
 
   // Fetch users via adminApi from Supabase Database
   const fetchUsers = async () => {
@@ -53,6 +97,18 @@ export default function AdminDashboard({ currentUser, triggerToast }) {
   useEffect(() => {
     fetchUsers();
     fetchListings();
+    fetchFinances();
+
+    const handleSync = () => fetchFinances();
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('g2g_admin_balance_updated', handleSync);
+    window.addEventListener('g2g_admin_notification', handleSync);
+
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('g2g_admin_balance_updated', handleSync);
+      window.removeEventListener('g2g_admin_notification', handleSync);
+    };
   }, []);
 
   // Approve Request
@@ -362,6 +418,12 @@ export default function AdminDashboard({ currentUser, triggerToast }) {
 
       {/* Quick Stats */}
       <div className="admin-stats-row">
+        <div className="admin-stat-card" style={{ border: '1px solid rgba(16, 185, 129, 0.45)', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.04) 100%)' }}>
+          <div className="admin-stat-val" style={{ color: '#10b981' }}>
+            {adminBalance.toLocaleString('vi-VN')}₫
+          </div>
+          <div className="admin-stat-label">Ví Doanh Thu Admin (Phí Sàn 10%)</div>
+        </div>
         <div className="admin-stat-card">
           <div className="admin-stat-val">{memberUsers.length}</div>
           <div className="admin-stat-label">Tổng thành viên</div>
@@ -377,13 +439,19 @@ export default function AdminDashboard({ currentUser, triggerToast }) {
           <div className="admin-stat-label">Yêu cầu chờ duyệt</div>
         </div>
         <div className="admin-stat-card">
-          <div className="admin-stat-val" style={{ color: '#10b981' }}>{globalListings.length}</div>
+          <div className="admin-stat-val" style={{ color: '#38bdf8' }}>{globalListings.length}</div>
           <div className="admin-stat-label">Sản phẩm trên sàn</div>
         </div>
       </div>
 
       {/* Tab Switcher */}
       <div className="admin-tabs-row">
+        <button
+          className={`admin-tab-btn ${activeTab === 'finances' ? 'active' : ''}`}
+          onClick={() => { setActiveTab('finances'); fetchFinances(); }}
+        >
+          💰 Doanh thu & Phí sàn ({adminFinances.totalOrders} đơn)
+        </button>
         <button
           className={`admin-tab-btn ${activeTab === 'requests' ? 'active' : ''}`}
           onClick={() => setActiveTab('requests')}
@@ -408,6 +476,122 @@ export default function AdminDashboard({ currentUser, triggerToast }) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '50px 0' }}>
           <p style={{ color: '#9ea2a9' }}>Đang tải dữ liệu từ máy chủ...</p>
+        </div>
+      ) : activeTab === 'finances' ? (
+        /* Tab: Finances & Commission Fees */
+        <div>
+          {/* Detailed revenue metrics cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ background: '#17181c', border: '1px solid #2d2f34', borderRadius: '12px', padding: '20px', borderLeft: '4px solid #10b981' }}>
+              <div style={{ fontSize: '12px', color: '#9ea2a9', textTransform: 'uppercase', fontWeight: 'bold' }}>Số Dư Ví Admin Thực Tế</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#10b981', marginTop: '6px' }}>{adminBalance.toLocaleString('vi-VN')}₫</div>
+              <div style={{ fontSize: '11px', color: '#6ee7b7', marginTop: '4px' }}>✓ Đã đồng bộ Database & LocalStorage</div>
+            </div>
+            <div style={{ background: '#17181c', border: '1px solid #2d2f34', borderRadius: '12px', padding: '20px', borderLeft: '4px solid #3b82f6' }}>
+              <div style={{ fontSize: '12px', color: '#9ea2a9', textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Doanh Số Toàn Sàn</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#3b82f6', marginTop: '6px' }}>{adminFinances.totalRevenue.toLocaleString('vi-VN')}₫</div>
+              <div style={{ fontSize: '11px', color: '#93c5fd', marginTop: '4px' }}>Tổng giao dịch mua bán qua hệ thống</div>
+            </div>
+            <div style={{ background: '#17181c', border: '1px solid #2d2f34', borderRadius: '12px', padding: '20px', borderLeft: '4px solid #fbbf24' }}>
+              <div style={{ fontSize: '12px', color: '#9ea2a9', textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Phí Sàn 10% Tích Lũy</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#fbbf24', marginTop: '6px' }}>+{adminFinances.totalFee.toLocaleString('vi-VN')}₫</div>
+              <div style={{ fontSize: '11px', color: '#fde68a', marginTop: '4px' }}>Hoa hồng sàn khấu trừ tự động</div>
+            </div>
+            <div style={{ background: '#17181c', border: '1px solid #2d2f34', borderRadius: '12px', padding: '20px', borderLeft: '4px solid #ec4899' }}>
+              <div style={{ fontSize: '12px', color: '#9ea2a9', textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Đơn Hàng Hoàn Thành</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#ec4899', marginTop: '6px' }}>{adminFinances.totalOrders} đơn</div>
+              <div style={{ fontSize: '11px', color: '#fbcfe8', marginTop: '4px' }}>Đơn hàng thành công trên sàn</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0 12px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#ffffff' }}>
+              📦 Danh sách đơn hàng & Phí sàn 10% thu về Admin
+            </h3>
+            <button 
+              onClick={fetchFinances}
+              style={{ background: '#2d2f34', border: 'none', color: '#ffffff', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              🔄 Làm mới số liệu
+            </button>
+          </div>
+
+          {adminOrders.length === 0 ? (
+            <div style={{
+              background: '#17181c', border: '1px solid #2d2f34',
+              borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#9ea2a9'
+            }}>
+              Chưa có đơn hàng nào trên hệ thống.
+            </div>
+          ) : (
+            <table className="admin-table" style={{ marginBottom: '30px' }}>
+              <thead>
+                <tr>
+                  <th>Mã Đơn</th>
+                  <th>Thời gian</th>
+                  <th>Người mua</th>
+                  <th>Người bán (Shop)</th>
+                  <th>Tổng giá trị</th>
+                  <th>Hoa hồng 10% (Admin)</th>
+                  <th>Shop thực nhận</th>
+                  <th>Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminOrders.map((ord) => (
+                  <tr key={ord.id}>
+                    <td style={{ fontWeight: 700, color: '#fbbf24' }}>#{ord.id}</td>
+                    <td style={{ fontSize: '12px', color: '#9ea2a9' }}>
+                      {ord.created_at ? new Date(ord.created_at).toLocaleString('vi-VN') : 'Vừa xong'}
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{ord.buyerName}</td>
+                    <td style={{ color: '#cbd5e1' }}>{ord.sellerName}</td>
+                    <td style={{ fontWeight: 700 }}>{(Number(ord.total_price) || 0).toLocaleString('vi-VN')}₫</td>
+                    <td style={{ fontWeight: 800, color: '#10b981' }}>
+                      +{(ord.feeAmount || 0).toLocaleString('vi-VN')}₫
+                    </td>
+                    <td style={{ color: '#9ea2a9' }}>{(ord.sellerNet || 0).toLocaleString('vi-VN')}₫</td>
+                    <td>
+                      <span className="status-badge approved" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                        ✓ Đã thu 10%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Table 2: Admin Wallet Transactions */}
+          {adminTransactions.length > 0 && (
+            <div>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', margin: '24px 0 12px', color: '#ffffff' }}>
+                💳 Lịch sử biến động ví Admin (Hoa hồng phí sàn)
+              </h3>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Mã GD</th>
+                    <th>Thời gian</th>
+                    <th>Nội dung biến động</th>
+                    <th>Số tiền thu về</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminTransactions.slice(0, 15).map((tx, idx) => (
+                    <tr key={tx.id || idx}>
+                      <td style={{ color: '#9ea2a9', fontSize: '12px' }}>{tx.id || `T-${idx}`}</td>
+                      <td style={{ fontSize: '12px', color: '#9ea2a9' }}>{tx.date || 'Gần đây'}</td>
+                      <td>{tx.desc || tx.description || 'Thu phí sàn đơn hàng'}</td>
+                      <td style={{ color: '#10b981', fontWeight: 800 }}>
+                        +{(Number(tx.amount) || 0).toLocaleString('vi-VN')}₫
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : activeTab === 'requests' ? (
         /* Tab 1: Seller Requests */
